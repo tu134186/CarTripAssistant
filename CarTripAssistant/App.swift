@@ -104,6 +104,7 @@ struct TrackPoint: Codable {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
         recordBoundaryPoint(&shift)
         shift.rides.append(Ride(started: Date()))
+        previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
     }
@@ -111,6 +112,7 @@ struct TrackPoint: Codable {
         guard var shift = active, let i = shift.rides.indices.last, shift.rides[i].ended == nil else { return }
         recordBoundaryPoint(&shift)
         shift.rides[i].ended = Date()
+        previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
     }
@@ -118,6 +120,7 @@ struct TrackPoint: Codable {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
         recordBoundaryPoint(&shift)
         shift.breaks.append(BreakPeriod(started: Date()))
+        previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
     }
@@ -125,6 +128,7 @@ struct TrackPoint: Codable {
         guard var shift = active, let i = shift.breaks.indices.last, shift.breaks[i].ended == nil else { return }
         recordBoundaryPoint(&shift)
         shift.breaks[i].ended = Date()
+        previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
     }
@@ -134,6 +138,7 @@ struct TrackPoint: Codable {
         if let i = shift.rides.indices.last, shift.rides[i].ended == nil { shift.rides[i].ended = now }
         if let i = shift.breaks.indices.last, shift.breaks[i].ended == nil { shift.breaks[i].ended = now }
         recordBoundaryPoint(&shift)
+        previous = nil
         shift.ended = now
         shift.revenue = revenue
         shift.notes = notes
@@ -155,6 +160,8 @@ struct TrackPoint: Codable {
         shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                       date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed))
         lastSavedLocation = point
+        // A valid boundary sample is a new segment origin; do not bridge categories.
+        previous = point
     }
     private func shouldSaveTrackPoint(_ point: CLLocation) -> Bool {
         guard let last = lastSavedLocation else { return true }
