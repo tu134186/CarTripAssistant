@@ -78,7 +78,14 @@ struct Shift: Codable, Identifiable {
             return total + max(0, stop.timeIntervalSince(max(period.started, started)))
         }
     }
-    var restSeconds: TimeInterval { breaks.reduce(0) { $0 + ($1.ended ?? Date()).timeIntervalSince($1.started) } }
+    func breakSeconds(kind: RestKind? = nil, at date: Date) -> TimeInterval {
+        let limit = min(date, ended ?? date)
+        return breaks.filter { kind == nil || $0.kind == kind }.reduce(0) { total, period in
+            let stop = min(period.ended ?? limit, limit)
+            return total + max(0, stop.timeIntervalSince(max(period.started, started)))
+        }
+    }
+    var restSeconds: TimeInterval { breakSeconds(at: Date()) }
 }
 struct TrackPoint: Codable {
     var lat: Double
@@ -598,9 +605,7 @@ struct Dashboard: View {
             let passengerSeconds = shift.rides.reduce(0.0) { total, ride in
                 total + max(0, min(ride.ended ?? now, now).timeIntervalSince(max(ride.started, shift.started)))
             }
-            let manualRestSeconds = shift.breaks.reduce(0.0) { total, rest in
-                total + max(0, min(rest.ended ?? now, now).timeIntervalSince(max(rest.started, shift.started)))
-            }
+            let manualRestSeconds = shift.breakSeconds(at: now)
             let totalSeconds = max(0, now.timeIntervalSince(shift.started))
             let waitingSeconds = shift.waitingSeconds(at: now)
             let restSeconds = manualRestSeconds + waitingSeconds
@@ -614,9 +619,9 @@ struct Dashboard: View {
                 metric("空驶总时长", clockString(Int(emptySeconds)), "", "car.side", .orange)
                 metric("等客总时长", clockString(Int(waitingSeconds)), "", "clock.arrow.circlepath", Cockpit.green)
                 metric("休息总时长", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", .cyan)
-                metric("吃饭休息", clockString(Int(shift.breaks.filter { $0.kind == .meal }.reduce(0.0) { $0 + max(0, ($1.ended ?? now).timeIntervalSince($1.started)) })), "", "fork.knife", .orange)
-                metric("充电休息", clockString(Int(shift.breaks.filter { $0.kind == .charging }.reduce(0.0) { $0 + max(0, ($1.ended ?? now).timeIntervalSince($1.started)) })), "", "bolt.car.fill", Cockpit.green)
-                metric("其他休息", clockString(Int(shift.breaks.filter { $0.kind == .other }.reduce(0.0) { $0 + max(0, ($1.ended ?? now).timeIntervalSince($1.started)) })), "", "cup.and.saucer", .cyan)
+                metric("吃饭休息", clockString(Int(shift.breakSeconds(kind: .meal, at: now))), "", "fork.knife", .orange)
+                metric("充电休息", clockString(Int(shift.breakSeconds(kind: .charging, at: now))), "", "bolt.car.fill", Cockpit.green)
+                metric("其他休息", clockString(Int(shift.breakSeconds(kind: .other, at: now))), "", "cup.and.saucer", .cyan)
             }
         }
     }
