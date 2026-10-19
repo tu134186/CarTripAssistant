@@ -136,6 +136,24 @@ struct TrackPoint: Codable {
     var accuracy: Double
     var speed: Double
     var segmentStart: Bool = false
+    private enum CodingKeys: String, CodingKey { case lat, lon, date, accuracy, speed, segmentStart }
+    init(lat: Double, lon: Double, date: Date, accuracy: Double, speed: Double, segmentStart: Bool = false) {
+        self.lat = lat
+        self.lon = lon
+        self.date = date
+        self.accuracy = accuracy
+        self.speed = speed
+        self.segmentStart = segmentStart
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        lat = try c.decode(Double.self, forKey: .lat)
+        lon = try c.decode(Double.self, forKey: .lon)
+        date = try c.decode(Date.self, forKey: .date)
+        accuracy = try c.decode(Double.self, forKey: .accuracy)
+        speed = try c.decode(Double.self, forKey: .speed)
+        segmentStart = try c.decodeIfPresent(Bool.self, forKey: .segmentStart) ?? false
+    }
 }
 @MainActor final class TripStore: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var active: Shift?
@@ -218,6 +236,7 @@ struct TrackPoint: Codable {
         previous = nil
         lastSavedLocation = nil
         lastSavedHeading = nil
+        needsNewTrackSegment = true
         save()
         resumeTracking()
     }
