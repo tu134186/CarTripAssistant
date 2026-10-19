@@ -531,9 +531,18 @@ struct Dashboard: View {
                             .monospacedDigit()
                     }
                 } else {
-                    Text(resting ? "休息中" : "等待接单")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Cockpit.muted)
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text(resting ? "当前休息计时" : "当前等客计时")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Cockpit.green)
+                        let start = resting
+                            ? shift.breaks.last?.started
+                            : (shift.waitingPeriods.last?.ended == nil ? shift.waitingPeriods.last?.started : nil)
+                        Text(start.map { clockString(max(0, Int(timeline.date.timeIntervalSince($0)))) } ?? "00:00:00")
+                            .font(.system(size: 22, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Cockpit.green)
+                            .monospacedDigit()
+                    }
                 }
             }
             .padding(17)
