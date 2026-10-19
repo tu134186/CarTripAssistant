@@ -576,10 +576,21 @@ private struct TripRouteMap: UIViewRepresentable {
         return map
     }
     func updateUIView(_ map: MKMapView, context: Context) {
-        let lastCount = context.coordinator.lastCount
-        guard lastCount != shift.points.count || context.coordinator.shiftID != shift.id else { return }
-        context.coordinator.lastCount = shift.points.count
-        context.coordinator.shiftID = shift.id
+        // Passenger boundaries can change without a new GPS point; invalidate
+        // the rendered route whenever pickup/dropoff timestamps change.
+        let rideSignature = shift.rides.map {
+            "\($0.id.uuidString):\($0.started.timeIntervalSince1970):\($0.ended?.timeIntervalSince1970 ?? -1)"
+        }.joined(separator: "|")
+        let latestPointTime = shift.points.last?.date.timeIntervalSince1970 ?? 0
+        let coordinator = context.coordinator
+        guard coordinator.lastCount != shift.points.count ||
+              coordinator.shiftID != shift.id ||
+              coordinator.lastRideSignature != rideSignature ||
+              coordinator.lastPointTime != latestPointTime else { return }
+        coordinator.lastCount = shift.points.count
+        coordinator.shiftID = shift.id
+        coordinator.lastRideSignature = rideSignature
+        coordinator.lastPointTime = latestPointTime
         map.removeOverlays(map.overlays)
         map.removeAnnotations(map.annotations)
         let points = shift.points.filter {
@@ -639,6 +650,8 @@ private struct TripRouteMap: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var lastCount = -1
         var shiftID: UUID?
+        var lastRideSignature = ""
+        var lastPointTime: TimeInterval = -1
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let tile = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tile) }
             let renderer = MKPolylineRenderer(overlay: overlay)
