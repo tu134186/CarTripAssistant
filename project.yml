@@ -16,4 +16,5 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tu.cartripassistant
         INFOPLIST_FILE: CarTripAssistant/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
