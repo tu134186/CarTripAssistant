@@ -8,6 +8,14 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Bundle Shenzhen offline roads map
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 39202922709 --repo "${{ github.repository }}" --name Shenzhen-Offline-Map-MBTiles --dir map-download
+          test -s map-download/Shenzhen-Roads.mbtiles
+          cp map-download/Shenzhen-Roads.mbtiles CarTripAssistant/OfflineMap.mbtiles
+          ls -lh CarTripAssistant/OfflineMap.mbtiles
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -17,7 +25,7 @@ jobs:
           xcodebuild -project CarTripAssistant.xcodeproj -scheme CarTripAssistant -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/CarTripAssistant.app Payload/
-          zip -qry CarTripAssistant-V1.1.0-unsigned.ipa Payload
+          zip -qry CarTripAssistant-V2.0.0-unsigned.ipa Payload
       - uses: actions/upload-artifact@v4
         with:
           name: CarTripAssistant-V1.1.0-unsigned-IPA
