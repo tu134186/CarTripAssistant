@@ -706,22 +706,22 @@ struct Dashboard: View {
         }
     }
     private func metric(_ label: String, _ value: String, _ unit: String, _ symbol: String, _ tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 15) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 7) {
                 Image(systemName: symbol).foregroundStyle(tint)
                 Text(label).foregroundStyle(Cockpit.muted)
             }
             .font(.system(size: 12, weight: .medium))
             HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(value).font(.system(size: 26, weight: .bold, design: .rounded))
+                Text(value).font(.system(size: 23, weight: .bold, design: .rounded))
                     .monospacedDigit().minimumScaleFactor(0.7).lineLimit(1)
                 Text(unit).font(.system(size: 12)).foregroundStyle(Cockpit.muted)
             }
             .foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(17)
-        .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 19))
+        .padding(13)
+        .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
     }
     private var controls: some View {
         VStack(alignment: .leading, spacing: 13) {
