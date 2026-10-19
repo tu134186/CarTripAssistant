@@ -541,9 +541,10 @@ struct Dashboard: View {
                                 metrics(shift)
                                 controls
                             } else {
-                                mileageCard(Shift(started: Date()))
-                                liveMap(Shift(started: Date()))
-                                metrics(Shift(started: Date()))
+                                let idleShift = Shift(started: Date())
+                                mileageCard(idleShift)
+                                liveMap(idleShift)
+                                idleMetrics
                                 welcome
                             }
                         } else if selectedTab == 1 {
@@ -874,6 +875,16 @@ struct Dashboard: View {
     private func clockString(_ seconds: Int) -> String {
         let hours = seconds / 3600
         return String(format: "%02d:%02d:%02d", hours, (seconds / 60) % 60, seconds % 60)
+    }
+    private var idleMetrics: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+            metric("完成订单", "0", "单", "checkmark.circle.fill", Cockpit.green)
+            metric("载客里程", "0.00", "km", "person.fill", Cockpit.blue)
+            metric("空驶里程", "0.00", "km", "car.side", .orange)
+            metric("总休息时间", "00:00:00", "", "cup.and.saucer.fill", .purple)
+            metric("载客时长", "00:00:00", "", "clock.fill", .pink)
+            metric("本次出车时长", "00:00:00", "", "clock", .cyan)
+        }
     }
     private func metrics(_ shift: Shift) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
