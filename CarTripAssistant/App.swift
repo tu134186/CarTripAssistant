@@ -495,6 +495,7 @@ struct Dashboard: View {
                 metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
                 metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
                 metric("空驶里程", String(format: "%.2f", shift.emptyKilometers), "km", "point.topleft.down.curvedto.point.bottomright.up", .orange)
+                metric("休息期间移动", String(format: "%.2f", shift.restKilometers), "km", "cup.and.saucer", .cyan)
                 metric("载客总时长", clockString(Int(passengerSeconds)), "", "person.crop.circle", Cockpit.blue)
                 metric("空驶总时长", clockString(Int(emptySeconds)), "", "car.side", .orange)
                 metric("休息总时长", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", .cyan)
