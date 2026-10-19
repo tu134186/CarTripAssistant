@@ -15,7 +15,7 @@ jobs:
       - name: Install map tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y osmium-tool python3-pil python3-pip
+          sudo apt-get install -y osmium-tool python3-pil python3-pip fonts-noto-cjk
       - name: Download Guangdong OSM extract
         run: |
           curl --fail --location --retry 3 --connect-timeout 30 \
