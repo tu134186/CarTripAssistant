@@ -11,10 +11,12 @@ struct Ride: Codable, Identifiable {
     var ended: Date?
     var kilometers: Double = 0
 }
+enum RestKind: String, Codable { case meal, charging, other }
 struct BreakPeriod: Codable, Identifiable {
     var id = UUID()
     var started: Date
     var ended: Date?
+    var kind: RestKind = .other
 }
 struct Shift: Codable, Identifiable {
     var id = UUID()
@@ -124,11 +126,11 @@ struct TrackPoint: Codable {
         active = shift
         save()
     }
-    func startBreak() {
+    func startBreak(kind: RestKind = .other) {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
         recordBoundaryPoint(&shift)
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = Date() }
-        shift.breaks.append(BreakPeriod(started: Date()))
+        shift.breaks.append(BreakPeriod(started: Date(), kind: kind))
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
@@ -275,7 +277,7 @@ struct TrackPoint: Codable {
         出车时间：\(shift.started.formatted())
         结束时间：\((shift.ended ?? Date()).formatted())
         出车时长：\(Int(duration / 60)) 分钟
-        休息时长：\(Int(shift.restSeconds / 60)) 分钟
+        总休息时长（含等客）：\(Int((shift.restSeconds + shift.waitingSeconds(at: shift.ended ?? Date())) / 60)) 分钟
         等客时长：\(Int(shift.waitingSeconds(at: shift.ended ?? Date()) / 60)) 分钟
         工作时长：\(Int(max(0, duration - shift.restSeconds) / 60)) 分钟
         全天总里程：\(String(format: "%.2f", shift.kilometers)) 公里
@@ -512,12 +514,13 @@ struct Dashboard: View {
             let passengerSeconds = shift.rides.reduce(0.0) { total, ride in
                 total + max(0, (ride.ended ?? now).timeIntervalSince(ride.started))
             }
-            let restSeconds = shift.breaks.reduce(0.0) { total, rest in
+            let manualRestSeconds = shift.breaks.reduce(0.0) { total, rest in
                 total + max(0, (rest.ended ?? now).timeIntervalSince(rest.started))
             }
             let totalSeconds = max(0, now.timeIntervalSince(shift.started))
             let waitingSeconds = shift.waitingSeconds(at: now)
-            let emptySeconds = max(0, totalSeconds - passengerSeconds - restSeconds - waitingSeconds)
+            let restSeconds = manualRestSeconds + waitingSeconds
+            let emptySeconds = max(0, totalSeconds - passengerSeconds - restSeconds)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
                 metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
@@ -560,11 +563,15 @@ struct Dashboard: View {
             if riding {
                 action("乘客下车", symbol: "checkmark.flag.fill", color: .orange) { store.endRide() }
             } else if resting {
-                action("继续接单", symbol: "play.fill", color: Cockpit.green) { store.endBreak() }
+                action("恢复接单", symbol: "play.fill", color: Cockpit.green) { store.endBreak() }
             } else {
                 action("乘客上车", symbol: "person.crop.circle.badge.checkmark", color: Cockpit.blue) { store.startRide() }
                 HStack(spacing: 12) {
-                    secondaryAction("暂停休息", symbol: "cup.and.saucer.fill") { store.startBreak() }
+                    secondaryAction("吃饭休息", symbol: "fork.knife") { store.startBreak(kind: .meal) }
+                    secondaryAction("充电等待", symbol: "bolt.car.fill") { store.startBreak(kind: .charging) }
+                }
+                HStack(spacing: 12) {
+                    secondaryAction("其他休息", symbol: "cup.and.saucer.fill") { store.startBreak(kind: .other) }
                     secondaryAction("结束出车", symbol: "flag.checkered") { showFinish = true }
                 }
             }
