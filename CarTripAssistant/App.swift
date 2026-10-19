@@ -522,10 +522,7 @@ struct Dashboard: View {
                 VStack(alignment: .leading, spacing: 20) {
                     if let shift = store.active {
                         mileageCard(shift)
-                        HStack(spacing: 10) {
-                            liveDurationCard(shift)
-                            routeEntry(shift)
-                        }
+                        routeEntry(shift)
                         metrics(shift)
                         controls
                     } else {
@@ -660,25 +657,6 @@ struct Dashboard: View {
         )
         .overlay(RoundedRectangle(cornerRadius: 25).stroke(Cockpit.blue.opacity(0.3), lineWidth: 1))
     }
-    private func liveDurationCard(_ shift: Shift) -> some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let seconds = max(0, Int(timeline.date.timeIntervalSince(shift.started)))
-            VStack(alignment: .leading, spacing: 10) {
-                Label("本次出车时长", systemImage: "clock")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Cockpit.muted)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                Text(clockString(seconds))
-                    .font(.system(size: 22, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.65).lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
-            .padding(14)
-            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 17))
-        }
-    }
     private func clockString(_ seconds: Int) -> String {
         let hours = seconds / 3600
         return String(format: "%02d:%02d:%02d", hours, (seconds / 60) % 60, seconds % 60)
@@ -694,6 +672,7 @@ struct Dashboard: View {
                 metric("空驶里程", String(format: "%.2f", shift.emptyKilometers), "km", "car.side", .orange)
                 metric("总休息时间", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", Cockpit.green)
                 metric("载客时长", clockString(Int(totals.passenger)), "", "person.crop.circle", Cockpit.blue)
+                metric("本次出车时长", clockString(max(0, Int(now.timeIntervalSince(shift.started)))), "", "clock", .cyan)
             }
         }
     }
