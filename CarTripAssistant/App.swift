@@ -362,7 +362,7 @@ struct TrackPoint: Codable {
                 let manualBreakActive = shift.breaks.last.map { $0.ended == nil } ?? false
                 // A long GPS outage does not prove the route between samples.
                 // Skip the gap instead of inventing straight-line vehicle mileage.
-                if seconds <= 120 && meters > 4 && speed < 50 && !walking && !manualBreakActive {
+                if seconds <= 120 && meters > max(8, last.horizontalAccuracy + point.horizontalAccuracy) && speed >= 1.5 && speed < 50 && !walking && !manualBreakActive {
                     let km = meters / 1000
                     shift.kilometers += km
                     if let i = shift.rides.indices.last, shift.rides[i].ended == nil {
@@ -524,11 +524,13 @@ struct Dashboard: View {
                         if selectedTab == 0 {
                             if let shift = store.active {
                                 mileageCard(shift)
-                                shiftStatus(shift)
                                 liveMap(shift)
                                 metrics(shift)
                                 controls
                             } else {
+                                mileageCard(Shift(started: Date()))
+                                liveMap(Shift(started: Date()))
+                                metrics(Shift(started: Date()))
                                 welcome
                             }
                         } else if selectedTab == 1 {
@@ -609,9 +611,13 @@ struct Dashboard: View {
                     .font(.system(size: 11)).foregroundStyle(Cockpit.muted)
             }
             Spacer()
-            Text(Date().formatted(.dateTime.month().day()))
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Cockpit.muted)
+            VStack(alignment: .trailing, spacing: 5) {
+                Text(Date().formatted(.dateTime.month().day()))
+                    .font(.system(size: 12, weight: .semibold))
+                Text(store.active == nil ? "未出车" : (riding ? "载客中" : (resting ? "休息中" : "已出车")))
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(store.active == nil ? Cockpit.muted : Cockpit.green)
+            }
         }
         .foregroundStyle(.white)
     }
@@ -637,31 +643,6 @@ struct Dashboard: View {
             .padding(.vertical, 6)
         }
         .buttonStyle(.plain)
-    }
-    private func shiftStatus(_ shift: Shift) -> some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let now = min(timeline.date, shift.ended ?? timeline.date)
-            HStack(spacing: 12) {
-                Image(systemName: "car.fill").font(.system(size: 24))
-                    .foregroundStyle(Cockpit.green)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(riding ? "载客中" : (resting ? "休息中" : "已出车")).font(.headline)
-                    Text("开始时间：" + shift.started.formatted(date: .omitted, time: .shortened))
-                        .font(.caption).foregroundStyle(Cockpit.muted)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(clockString(max(0, Int(now.timeIntervalSince(shift.started)))))
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                    Text("本次出车时长").font(.caption2)
-                }
-                .foregroundStyle(Cockpit.green)
-            }
-            .padding(16)
-            .background(LinearGradient(colors: [Color(red: 0.02, green: 0.29, blue: 0.24), Cockpit.panel], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Cockpit.green.opacity(0.45)))
-        }
     }
     private func liveMap(_ shift: Shift) -> some View {
         NavigationLink {
@@ -844,24 +825,14 @@ struct Dashboard: View {
         .foregroundStyle(.white)
     }
     private var welcome: some View {
-        VStack(spacing: 19) {
-            ZStack {
-                Circle().fill(Cockpit.blue.opacity(0.13)).frame(width: 116, height: 116)
-                Image(systemName: "car.side.fill")
-                    .font(.system(size: 55))
-                    .foregroundStyle(Cockpit.blue)
-            }
-            Text("准备开始今天的出车")
-                .font(.system(size: 22, weight: .bold))
-            Text("一键开启全天行程，自动累计里程、订单与休息时间")
-                .font(.system(size: 13))
-                .foregroundStyle(Cockpit.muted)
-                .multilineTextAlignment(.center)
-            action("开始出车", symbol: "play.fill", color: Cockpit.blue) { store.startShift() }
+        Button { store.startShift() } label: {
+            Label("开始出车", systemImage: "play.fill")
+                .font(.system(size: 19, weight: .bold))
+                .frame(maxWidth: .infinity).frame(height: 60)
+                .foregroundStyle(.white)
+                .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 16))
         }
-        .frame(maxWidth: .infinity)
-        .padding(24)
-        .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 24))
+        .buttonStyle(.plain)
     }
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 13) {
