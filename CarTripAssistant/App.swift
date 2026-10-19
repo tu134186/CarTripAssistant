@@ -252,9 +252,10 @@ struct TrackPoint: Codable {
     }
     func endBreak() {
         guard var shift = active, let i = shift.breaks.indices.last, shift.breaks[i].ended == nil else { return }
-        recordBoundaryPoint(&shift)
-        shift.breaks[i].ended = Date()
-        shift.waitingPeriods.append(BreakPeriod(started: Date()))
+        // Do not add the phone\u0027s walking position as a vehicle route endpoint.
+        let now = Date()
+        shift.breaks[i].ended = now
+        shift.waitingPeriods.append(BreakPeriod(started: now))
         shift.lastEmptyMovementAt = nil
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
@@ -358,7 +359,8 @@ struct TrackPoint: Codable {
                 shift.lastEmptyMovementAt = nil
             }
             previous = point
-            if shouldSaveTrackPoint(point) {
+            // Walking during a meal or charging stop is not part of the vehicle track.
+            if !breakActive && !walking && shouldSaveTrackPoint(point) {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                               date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed))
                 lastSavedLocation = point
