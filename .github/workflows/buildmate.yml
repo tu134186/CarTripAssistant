@@ -1,0 +1,95 @@
+name: BuildMate Linux Preflight
+on:
+  workflow_dispatch:
+    inputs:
+      expected_source_sha256:
+        description: Expected app.zip SHA-256
+        required: true
+        type: string
+      expected_source_bytes:
+        description: Expected app.zip bytes
+        required: true
+        type: string
+      source_name:
+        description: Original source name
+        required: false
+        type: string
+      repair_mode:
+        description: Apply .buildmate/repair-plan.json before static checks
+        required: false
+        default: 'false'
+        type: string
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Source fingerprint gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f app.zip || { echo '❌ repo root missing app.zip'; exit 21; }
+          ACTUAL_SHA="$(sha256sum app.zip | awk '{print $1}')"
+          ACTUAL_BYTES="$(wc -c < app.zip | tr -d ' ')"
+          echo "source=${{ inputs.source_name }}"
+          echo "sha256=$ACTUAL_SHA"
+          echo "bytes=$ACTUAL_BYTES"
+          test "$ACTUAL_SHA" = "${{ inputs.expected_source_sha256 }}" || { echo '❌ SHA-256 mismatch'; exit 22; }
+          test "$ACTUAL_BYTES" = "${{ inputs.expected_source_bytes }}" || { echo '❌ byte count mismatch'; exit 23; }
+          unzip -tq app.zip
+      - name: Extract and structural checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf src && mkdir src
+          unzip -q app.zip -d src
+          if [ ! -f src/project.yml ]; then
+            P="$(find src -type f -name project.yml | head -1 || true)"
+            if [ -n "$P" ]; then ROOT="$(dirname "$P")"; mkdir moved; cp -R "$ROOT"/. moved/; rm -rf src; mv moved src; fi
+          fi
+          test -f src/project.yml || { echo '❌ project.yml missing'; exit 31; }
+          test -d src/BuildMate || { echo '❌ BuildMate source directory missing'; exit 32; }
+          test -f src/BuildMate/Info.plist || { echo '❌ Info.plist missing'; exit 33; }
+          if [ -f src/scripts/check_release_version.py ]; then (cd src && python3 scripts/check_release_version.py); fi
+      - name: Apply repair plan for AI preflight
+        if: ${{ inputs.repair_mode == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,pathlib
+          plan=pathlib.Path('.buildmate/repair-plan.json')
+          root=pathlib.Path('src')
+          if not plan.exists(): raise SystemExit('❌ repair plan missing')
+          obj=json.loads(plan.read_text())
+          import hashlib
+          current=hashlib.sha256(pathlib.Path('app.zip').read_bytes()).hexdigest()
+          bound=str(obj.get('sourceSHA256') or obj.get('source_sha256') or '').strip().lower()
+          if not bound or bound != current.lower():
+              print('⚠️ stale repair plan isolated: Source SHA mismatch/missing')
+              raise SystemExit(0)
+          patches=obj.get('patches') or []
+          if not patches: raise SystemExit('❌ repair plan has no patches')
+          for p in patches:
+            rel=p.get('path',''); old=p.get('search',''); new=p.get('replace','')
+            f=root/rel
+            if not f.is_file() or not old or len(old)>5000 or len(new)>5000: raise SystemExit('❌ unsafe patch')
+            text=f.read_text(errors='ignore'); n=text.count(old)
+            if n != 1: raise SystemExit(f'❌ patch must hit once, got {n}: {rel}')
+            f.write_text(text.replace(old,new,1))
+          print(f'✅ applied {len(patches)} repair patches for Linux preflight')
+          PY
+      - name: Static high-frequency bug scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          ! grep -R --line-number --include='*.swift' 'ActivityShareSheet(items: shareItems)' BuildMate || { echo '❌ stale ActivityShareSheet regression'; exit 41; }
+          if command -v swiftc >/dev/null 2>&1; then
+            find BuildMate -name '*.swift' -print0 | xargs -0 swiftc -parse
+          else
+            echo 'ℹ️ ubuntu runner has no swiftc; syntax parse skipped'
+          fi
+          echo '✅ Linux preflight passed; macOS/Xcode may start now.'
