@@ -323,7 +323,9 @@ struct TrackPoint: Codable {
                 // Manual rest can include walking away from the parked car. Never add
                 // that movement to vehicle mileage, even if motion detection lags.
                 let manualBreakActive = shift.breaks.last.map { $0.ended == nil } ?? false
-                // A long GPS outage does not prove the route between samples.\n                // Skip the gap instead of inventing straight-line vehicle mileage.\n                if seconds <= 120 && meters > 4 && speed < 50 && !walking && !manualBreakActive {
+                // A long GPS outage does not prove the route between samples.
+                // Skip the gap instead of inventing straight-line vehicle mileage.
+                if seconds <= 120 && meters > 4 && speed < 50 && !walking && !manualBreakActive {
                     let km = meters / 1000
                     shift.kilometers += km
                     if let i = shift.rides.indices.last, shift.rides[i].ended == nil {
