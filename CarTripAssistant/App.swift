@@ -17,6 +17,19 @@ struct BreakPeriod: Codable, Identifiable {
     var started: Date
     var ended: Date?
     var kind: RestKind = .other
+    init(started: Date, ended: Date? = nil, kind: RestKind = .other) {
+        self.started = started
+        self.ended = ended
+        self.kind = kind
+    }
+    private enum CodingKeys: String, CodingKey { case id, started, ended, kind }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        started = try c.decode(Date.self, forKey: .started)
+        ended = try c.decodeIfPresent(Date.self, forKey: .ended)
+        kind = try c.decodeIfPresent(RestKind.self, forKey: .kind) ?? .other
+    }
 }
 struct Shift: Codable, Identifiable {
     var id = UUID()
@@ -32,6 +45,29 @@ struct Shift: Codable, Identifiable {
     var revenue: String = ""
     var notes: String = ""
     var points: [TrackPoint] = []
+    init(started: Date) { self.started = started }
+    private enum CodingKeys: String, CodingKey {
+        case id, started, ended, kilometers, emptyKilometers, restKilometers
+        case rides, breaks, waitingPeriods, lastEmptyMovementAt, revenue, notes, points
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        started = try c.decode(Date.self, forKey: .started)
+        ended = try c.decodeIfPresent(Date.self, forKey: .ended)
+        kilometers = try c.decodeIfPresent(Double.self, forKey: .kilometers) ?? 0
+        rides = try c.decodeIfPresent([Ride].self, forKey: .rides) ?? []
+        breaks = try c.decodeIfPresent([BreakPeriod].self, forKey: .breaks) ?? []
+        points = try c.decodeIfPresent([TrackPoint].self, forKey: .points) ?? []
+        // Old archives had no separate distance categories; keep the historical total.
+        emptyKilometers = try c.decodeIfPresent(Double.self, forKey: .emptyKilometers)
+            ?? max(0, kilometers - rides.reduce(0) { $0 + $1.kilometers })
+        restKilometers = try c.decodeIfPresent(Double.self, forKey: .restKilometers) ?? 0
+        waitingPeriods = try c.decodeIfPresent([BreakPeriod].self, forKey: .waitingPeriods) ?? []
+        lastEmptyMovementAt = try c.decodeIfPresent(Date.self, forKey: .lastEmptyMovementAt)
+        revenue = try c.decodeIfPresent(String.self, forKey: .revenue) ?? ""
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+    }
     var passengerKM: Double { rides.reduce(0) { $0 + $1.kilometers } }
     var completedOrders: Int { rides.filter { $0.ended != nil }.count }
     func waitingSeconds(at now: Date) -> TimeInterval {
