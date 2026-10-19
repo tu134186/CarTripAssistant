@@ -594,12 +594,12 @@ struct Dashboard: View {
     }
     private func metrics(_ shift: Shift) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let now = timeline.date
+            let now = min(timeline.date, shift.ended ?? timeline.date)
             let passengerSeconds = shift.rides.reduce(0.0) { total, ride in
-                total + max(0, (ride.ended ?? now).timeIntervalSince(ride.started))
+                total + max(0, min(ride.ended ?? now, now).timeIntervalSince(max(ride.started, shift.started)))
             }
             let manualRestSeconds = shift.breaks.reduce(0.0) { total, rest in
-                total + max(0, (rest.ended ?? now).timeIntervalSince(rest.started))
+                total + max(0, min(rest.ended ?? now, now).timeIntervalSince(max(rest.started, shift.started)))
             }
             let totalSeconds = max(0, now.timeIntervalSince(shift.started))
             let waitingSeconds = shift.waitingSeconds(at: now)
