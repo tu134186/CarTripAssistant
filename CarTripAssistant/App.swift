@@ -732,8 +732,10 @@ private enum OfflineMap {
         var statement: OpaquePointer?
         let valid = opened && sqlite3_prepare_v2(db, "SELECT tile_data FROM tiles LIMIT 1", -1, &statement, nil) == SQLITE_OK
             && sqlite3_step(statement) == SQLITE_ROW
+            && sqlite3_column_bytes(statement, 0) > 8
         sqlite3_finalize(statement)
         var raster = false
+        var zoomOK = false
         if valid {
             var formatStatement: OpaquePointer?
             if sqlite3_prepare_v2(db, "SELECT value FROM metadata WHERE name='format' LIMIT 1", -1, &formatStatement, nil) == SQLITE_OK,
@@ -743,15 +745,26 @@ private enum OfflineMap {
                 raster = ["png", "jpg", "jpeg", "webp"].contains(format)
             }
             sqlite3_finalize(formatStatement)
+            var zoomQuery: OpaquePointer?
+            if sqlite3_prepare_v2(db, "SELECT MIN(zoom_level), MAX(zoom_level) FROM tiles", -1, &zoomQuery, nil) == SQLITE_OK,
+               sqlite3_step(zoomQuery) == SQLITE_ROW {
+                let minZoom = sqlite3_column_int(zoomQuery, 0)
+                let maxZoom = sqlite3_column_int(zoomQuery, 1)
+                zoomOK = minZoom >= 0 && maxZoom <= 22 && minZoom <= maxZoom
+            }
+            sqlite3_finalize(zoomQuery)
         }
         sqlite3_close(db)
-        guard valid && raster else {
+        guard valid && raster && zoomOK else {
             try? fm.removeItem(at: temp)
             throw NSError(domain: "OfflineMap", code: 1, userInfo: [NSLocalizedDescriptionKey: "需要带有 format=png/jpg/jpeg/webp 元数据且包含实际瓦片的栅格 MBTiles；矢量 pbf 不支持"])
         }
         let target = folder.appendingPathComponent("offline.mbtiles")
-        if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
-        try fm.moveItem(at: temp, to: target)
+        if fm.fileExists(atPath: target.path) {
+            _ = try fm.replaceItemAt(target, withItemAt: temp, backupItemName: nil, options: [])
+        } else {
+            try fm.moveItem(at: temp, to: target)
+        }
     }
 }
 private final class OfflineRasterTiles: MKTileOverlay {
