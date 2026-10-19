@@ -781,8 +781,18 @@ private final class OfflineRasterTiles: MKTileOverlay {
         fileURL = url
         super.init(urlTemplate: nil)
         tileSize = CGSize(width: 256, height: 256)
-        minimumZ = 10
-        maximumZ = 16
+        // Respect actual MBTiles zoom levels; older bundled maps stop at z15.
+        var db: OpaquePointer?
+        if sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK {
+            var statement: OpaquePointer?
+            if sqlite3_prepare_v2(db, "SELECT MIN(zoom_level), MAX(zoom_level) FROM tiles", -1, &statement, nil) == SQLITE_OK,
+               sqlite3_step(statement) == SQLITE_ROW {
+                minimumZ = Int(sqlite3_column_int(statement, 0))
+                maximumZ = Int(sqlite3_column_int(statement, 1))
+            }
+            sqlite3_finalize(statement)
+        }
+        sqlite3_close(db)
         tileCache.countLimit = 384
         tileCache.totalCostLimit = 24 * 1024 * 1024
     }
