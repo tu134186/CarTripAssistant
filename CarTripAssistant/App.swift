@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreLocation
 import CoreMotion
+import MapKit
 
 struct Ride: Codable, Identifiable {
     var id = UUID()
@@ -52,7 +53,7 @@ struct TrackPoint: Codable {
             history = saved.history
         }
         location.delegate = self
-        location.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+        location.desiredAccuracy = kCLLocationAccuracyBest
         location.distanceFilter = 5
         location.pausesLocationUpdatesAutomatically = false
         location.allowsBackgroundLocationUpdates = true
@@ -66,6 +67,7 @@ struct TrackPoint: Codable {
     private func resumeTracking() {
         location.requestAlwaysAuthorization()
         location.startUpdatingLocation()
+        gpsStatus = "等待有效 GPS"
         if CMMotionActivityManager.isActivityAvailable() {
             motion.startActivityUpdates(to: .main) { [weak self] activity in
                 Task { @MainActor in
@@ -120,6 +122,9 @@ struct TrackPoint: Codable {
         previous = nil
         location.stopUpdatingLocation()
         motion.stopActivityUpdates()
+        walking = false
+        motionStatus = "未知"
+        gpsStatus = "未出车"
         save()
     }
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -144,7 +149,7 @@ struct TrackPoint: Codable {
             }
             previous = point
             shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude, date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed))
-            if shift.points.count > 20000 { shift.points.removeFirst(1000) }
+            // 保留完整轨迹；后续迁移到分段文件存储，避免单个 JSON 无限增长。
         }
         active = shift
         gpsStatus = "GPS 记录中"
@@ -202,6 +207,7 @@ struct Dashboard: View {
     private var riding: Bool { store.active?.rides.last.map { $0.ended == nil } ?? false }
     private var resting: Bool { store.active?.breaks.last.map { $0.ended == nil } ?? false }
     var body: some View {
+        NavigationStack {
         ZStack {
             Cockpit.background.ignoresSafeArea()
             ScrollView {
@@ -209,6 +215,7 @@ struct Dashboard: View {
                     header
                     if let shift = store.active {
                         mileageCard(shift)
+                        routeEntry(shift)
                         metrics(shift)
                         controls
                     } else {
@@ -223,6 +230,7 @@ struct Dashboard: View {
                 .padding(.top, 14)
                 .padding(.bottom, 34)
             }
+        }
         }
         .preferredColorScheme(.dark)
         .alert("结束今天的出车", isPresented: $showFinish) {
@@ -274,6 +282,24 @@ struct Dashboard: View {
             .foregroundStyle(store.active == nil ? Cockpit.muted : Cockpit.green)
             .padding(.horizontal, 12).padding(.vertical, 9)
             .background(Cockpit.panel, in: Capsule())
+        }
+    }
+    private func routeEntry(_ shift: Shift) -> some View {
+        NavigationLink {
+            RouteDetail(shift: shift)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "map.fill").foregroundStyle(Cockpit.blue)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("今日行驶轨迹").font(.system(size: 15, weight: .semibold))
+                    Text("\(shift.points.count) 个 GPS 记录点 · 地图查看").font(.caption).foregroundStyle(Cockpit.muted)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(Cockpit.muted)
+            }
+            .foregroundStyle(.white)
+            .padding(17)
+            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 17))
         }
     }
     private func mileageCard(_ shift: Shift) -> some View {
@@ -432,6 +458,12 @@ struct Dashboard: View {
                             .font(.system(size: 13)).foregroundStyle(Cockpit.muted)
                     }
                     Spacer(minLength: 5)
+                    NavigationLink {
+                        RouteDetail(shift: item)
+                    } label: {
+                        Image(systemName: "map")
+                            .frame(width: 36, height: 42)
+                    }
                     ShareLink(item: store.report(item)) {
                         Image(systemName: "square.and.arrow.up")
                             .frame(width: 36, height: 42)
@@ -447,5 +479,118 @@ struct Dashboard: View {
                 .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
             }
         }
+    }
+}
+
+
+private struct RouteLine {
+    let points: [CLLocationCoordinate2D]
+    let passenger: Bool
+}
+private final class RouteOverlay: MKPolyline {
+    var isPassenger = false
+}
+private struct TripRouteMap: UIViewRepresentable {
+    let shift: Shift
+    func makeUIView(context: Context) -> MKMapView {
+        let map = MKMapView()
+        map.delegate = context.coordinator
+        map.overrideUserInterfaceStyle = .dark
+        map.showsCompass = true
+        map.isRotateEnabled = false
+        return map
+    }
+    func updateUIView(_ map: MKMapView, context: Context) {
+        let lastCount = context.coordinator.lastCount
+        guard lastCount != shift.points.count || context.coordinator.shiftID != shift.id else { return }
+        context.coordinator.lastCount = shift.points.count
+        context.coordinator.shiftID = shift.id
+        map.removeOverlays(map.overlays)
+        map.removeAnnotations(map.annotations)
+        let points = shift.points.filter {
+            (-90...90).contains($0.lat) && (-180...180).contains($0.lon)
+        }
+        guard !points.isEmpty else { return }
+        // 分段绘制：载客为绿色，其余为蓝色；定位时间间隔过长则断开，不画跨城直线。
+        var segment: [CLLocationCoordinate2D] = []
+        var segmentPassenger = false
+        var previousDate: Date?
+        func flush() {
+            guard segment.count >= 2 else { segment.removeAll(); return }
+            let overlay = RouteOverlay(coordinates: segment, count: segment.count)
+            overlay.isPassenger = segmentPassenger
+            map.addOverlay(overlay)
+            segment.removeAll()
+        }
+        for p in points {
+            let passenger = shift.rides.contains { ride in
+                p.date >= ride.started && p.date <= (ride.ended ?? Date())
+            }
+            if passenger != segmentPassenger || (previousDate.map { p.date.timeIntervalSince($0) > 120 } ?? false) {
+                flush()
+            }
+            segmentPassenger = passenger
+            segment.append(CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon))
+            previousDate = p.date
+        }
+        flush()
+        let first = MKPointAnnotation()
+        first.title = "起点"
+        first.coordinate = CLLocationCoordinate2D(latitude: points[0].lat, longitude: points[0].lon)
+        let last = MKPointAnnotation()
+        last.title = "终点 / 最新位置"
+        last.coordinate = CLLocationCoordinate2D(latitude: points[points.count-1].lat, longitude: points[points.count-1].lon)
+        map.addAnnotations([first,last])
+        map.showAnnotations([first,last], animated: false)
+        if points.count > 2 {
+            let coords = points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+            let poly = MKPolyline(coordinates: coords, count: coords.count)
+            let rect = poly.boundingMapRect
+            if !rect.isNull {
+                map.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 65, left: 40, bottom: 65, right: 40), animated: false)
+            }
+        }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    final class Coordinator: NSObject, MKMapViewDelegate {
+        var lastCount = -1
+        var shiftID: UUID?
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            let renderer = MKPolylineRenderer(overlay: overlay)
+            renderer.strokeColor = (overlay as? RouteOverlay)?.isPassenger == true ? .systemGreen : .systemBlue
+            renderer.lineWidth = 5
+            renderer.alpha = 0.9
+            return renderer
+        }
+    }
+}
+private struct RouteDetail: View {
+    let shift: Shift
+    var body: some View {
+        VStack(spacing: 0) {
+            TripRouteMap(shift: shift)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            HStack(spacing: 18) {
+                Label("全天轨迹", systemImage: "line.diagonal").foregroundStyle(.blue)
+                Label("载客区间", systemImage: "line.diagonal").foregroundStyle(.green)
+                Spacer()
+            }
+            .font(.caption.bold())
+            .padding(15)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(String(format: "总里程 %.2f km  ·  载客 %.2f km", shift.kilometers, shift.passengerKM))
+                    .font(.headline)
+                Text("\(shift.completedOrders) 单 · \(shift.points.count) 个轨迹点")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("蓝线是记录的 GPS 轨迹，绿线按乘客上下车时间标记。定位断点、步行点和漂移可能影响地图及里程。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+        }
+        .background(Cockpit.background)
+        .navigationTitle("行驶足迹")
+        .navigationBarTitleDisplayMode(.inline)
+        .preferredColorScheme(.dark)
     }
 }
