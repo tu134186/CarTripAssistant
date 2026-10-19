@@ -694,22 +694,14 @@ struct Dashboard: View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             let now = min(timeline.date, shift.ended ?? timeline.date)
             let totals = shift.timeTotals(at: now)
-            let passengerSeconds = totals.passenger
-            let waitingSeconds = totals.waiting
             let restSeconds = totals.manualRest + totals.waiting
-            let emptySeconds = totals.empty
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
                 metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
-                metric("空驶里程", String(format: "%.2f", shift.emptyKilometers), "km", "point.topleft.down.curvedto.point.bottomright.up", .orange)
-                metric("总行驶里程", String(format: "%.2f", shift.kilometers), "km", "car.fill", .cyan)
-                metric("载客总时长", clockString(Int(passengerSeconds)), "", "person.crop.circle", Cockpit.blue)
-                metric("空驶总时长", clockString(Int(emptySeconds)), "", "car.side", .orange)
-                metric("等客总时长", clockString(Int(waitingSeconds)), "", "clock.arrow.circlepath", Cockpit.green)
-                metric("休息总时长", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", .cyan)
-                metric("吃饭休息", clockString(Int(totals.meal)), "", "fork.knife", .orange)
-                metric("充电休息", clockString(Int(totals.charging)), "", "bolt.car.fill", Cockpit.green)
-                metric("其他休息", clockString(Int(totals.other)), "", "cup.and.saucer", .cyan)
+                metric("空驶里程", String(format: "%.2f", shift.emptyKilometers), "km", "car.side", .orange)
+                metric("总休息时间", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", Cockpit.green)
+                metric("载客时长", clockString(Int(totals.passenger)), "", "person.crop.circle", Cockpit.blue)
+                metric("空驶时长", clockString(Int(totals.empty)), "", "clock", .orange)
             }
         }
     }
