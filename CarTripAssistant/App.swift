@@ -44,6 +44,8 @@ struct TrackPoint: Codable {
     private let motion = CMMotionActivityManager()
     private var previous: CLLocation?
     private var walking = false
+    private var lastSavedLocation: CLLocation?
+    private var lastSavedHeading: CLLocationDirection?
     private struct Saved: Codable { var active: Shift?; var history: [Shift] }
     private var file: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("trips.json") }
     override init() {
@@ -82,29 +84,35 @@ struct TrackPoint: Codable {
         guard active == nil else { return }
         active = Shift(started: Date())
         previous = nil
+        lastSavedLocation = nil
+        lastSavedHeading = nil
         save()
         resumeTracking()
     }
     func startRide() {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
+        recordBoundaryPoint(&shift)
         shift.rides.append(Ride(started: Date()))
         active = shift
         save()
     }
     func endRide() {
         guard var shift = active, let i = shift.rides.indices.last, shift.rides[i].ended == nil else { return }
+        recordBoundaryPoint(&shift)
         shift.rides[i].ended = Date()
         active = shift
         save()
     }
     func startBreak() {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
+        recordBoundaryPoint(&shift)
         shift.breaks.append(BreakPeriod(started: Date()))
         active = shift
         save()
     }
     func endBreak() {
         guard var shift = active, let i = shift.breaks.indices.last, shift.breaks[i].ended == nil else { return }
+        recordBoundaryPoint(&shift)
         shift.breaks[i].ended = Date()
         active = shift
         save()
@@ -114,6 +122,7 @@ struct TrackPoint: Codable {
         let now = Date()
         if let i = shift.rides.indices.last, shift.rides[i].ended == nil { shift.rides[i].ended = now }
         if let i = shift.breaks.indices.last, shift.breaks[i].ended == nil { shift.breaks[i].ended = now }
+        recordBoundaryPoint(&shift)
         shift.ended = now
         shift.revenue = revenue
         shift.notes = notes
@@ -126,6 +135,28 @@ struct TrackPoint: Codable {
         motionStatus = "未知"
         gpsStatus = "未出车"
         save()
+    }
+    private func recordBoundaryPoint(_ shift: inout Shift) {
+        guard let point = location.location,
+              point.horizontalAccuracy > 0, point.horizontalAccuracy <= 35,
+              abs(point.timestamp.timeIntervalSinceNow) < 15 else { return }
+        if let last = shift.points.last, abs(last.date.timeIntervalSince(point.timestamp)) < 1 { return }
+        shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
+                                      date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed))
+        lastSavedLocation = point
+    }
+    private func shouldSaveTrackPoint(_ point: CLLocation) -> Bool {
+        guard let last = lastSavedLocation else { return true }
+        let meters = point.distance(from: last)
+        let elapsed = point.timestamp.timeIntervalSince(last.timestamp)
+        if elapsed >= 90 { return true }
+        if meters >= 100 { return true }
+        // 转弯时增加轨迹密度，避免道路拐角被连成直线。
+        if meters >= 20, point.course >= 0, let old = lastSavedHeading {
+            let diff = abs(point.course - old)
+            if min(diff, 360 - diff) >= 30 { return true }
+        }
+        return false
     }
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
@@ -148,8 +179,12 @@ struct TrackPoint: Codable {
                 }
             }
             previous = point
-            shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude, date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed))
-            // 保留完整轨迹；后续迁移到分段文件存储，避免单个 JSON 无限增长。
+            if shouldSaveTrackPoint(point) {
+                shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
+                                              date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed))
+                lastSavedLocation = point
+                if point.course >= 0 { lastSavedHeading = point.course }
+            }
         }
         active = shift
         gpsStatus = "GPS 记录中"
@@ -244,7 +279,7 @@ struct Dashboard: View {
         } message: {
             Text("将保存今天的订单、休息时间和里程。")
         }
-        .confirmationDialog("放弃本次测试记录？", isPresented: $showDiscard, titleVisibility: .visible) {
+        .confirmationDialog("放弃本次出车？", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("放弃本次出车（不可恢复）", role: .destructive) { store.discardShift() }
         } message: {
             Text("仅清除正在记录的本次出车，不影响历史日报。")
@@ -378,7 +413,7 @@ struct Dashboard: View {
             } else if resting {
                 action("继续接单", symbol: "play.fill", color: Cockpit.green) { store.endBreak() }
             } else {
-                action("接到订单", symbol: "person.crop.circle.badge.checkmark", color: Cockpit.blue) { store.startRide() }
+                action("乘客上车", symbol: "person.crop.circle.badge.checkmark", color: Cockpit.blue) { store.startRide() }
                 HStack(spacing: 12) {
                     secondaryAction("暂停休息", symbol: "cup.and.saucer.fill") { store.startBreak() }
                     secondaryAction("结束出车", symbol: "flag.checkered") { showFinish = true }
