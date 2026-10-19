@@ -16,7 +16,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          MAP_RUN=$(gh run list --repo "${{ github.repository }}" --workflow shenzhen-map.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            MAP_RUN="${{ github.event.workflow_run.id }}"
+          else
+            MAP_RUN=$(gh run list --repo "${{ github.repository }}" --workflow shenzhen-map.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
           test -n "$MAP_RUN"
           echo "Using Shenzhen map build run $MAP_RUN"
           gh run download "$MAP_RUN" --repo "${{ github.repository }}" --name Shenzhen-Offline-Map-MBTiles --dir map-download
