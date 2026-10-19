@@ -71,7 +71,12 @@ struct Shift: Codable, Identifiable {
     var passengerKM: Double { rides.reduce(0) { $0 + $1.kilometers } }
     var completedOrders: Int { rides.filter { $0.ended != nil }.count }
     func waitingSeconds(at now: Date) -> TimeInterval {
-        waitingPeriods.reduce(0) { $0 + max(0, ($1.ended ?? now).timeIntervalSince($1.started)) }
+        // Clamp every interval to the shift boundaries, including archived shifts.
+        let limit = min(now, ended ?? now)
+        return waitingPeriods.reduce(0) { total, period in
+            let stop = min(period.ended ?? limit, limit)
+            return total + max(0, stop.timeIntervalSince(max(period.started, started)))
+        }
     }
     var restSeconds: TimeInterval { breaks.reduce(0) { $0 + ($1.ended ?? Date()).timeIntervalSince($1.started) } }
 }
@@ -179,7 +184,8 @@ struct TrackPoint: Codable {
         guard var shift = active, let i = shift.rides.indices.last, shift.rides[i].ended == nil else { return }
         recordBoundaryPoint(&shift)
         shift.rides[i].ended = Date()
-        shift.waitingPeriods.append(BreakPeriod(started: Date()))
+        let now = Date()
+        shift.waitingPeriods.append(BreakPeriod(started: now))
         shift.lastEmptyMovementAt = nil
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
