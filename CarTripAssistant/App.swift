@@ -137,7 +137,9 @@ struct TrackPoint: Codable {
     }
     func startShift() {
         guard active == nil else { return }
-        active = Shift(started: Date())
+        var newShift = Shift(started: Date())
+        newShift.waitingPeriods.append(BreakPeriod(started: newShift.started))
+        active = newShift
         previous = nil
         lastSavedLocation = nil
         lastSavedHeading = nil
@@ -148,6 +150,7 @@ struct TrackPoint: Codable {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
         recordBoundaryPoint(&shift)
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = Date() }
+        shift.lastEmptyMovementAt = nil
         shift.rides.append(Ride(started: Date()))
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
@@ -158,6 +161,7 @@ struct TrackPoint: Codable {
         recordBoundaryPoint(&shift)
         shift.rides[i].ended = Date()
         shift.waitingPeriods.append(BreakPeriod(started: Date()))
+        shift.lastEmptyMovementAt = nil
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
@@ -166,6 +170,7 @@ struct TrackPoint: Codable {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
         recordBoundaryPoint(&shift)
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = Date() }
+        shift.lastEmptyMovementAt = nil
         shift.breaks.append(BreakPeriod(started: Date(), kind: kind))
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
@@ -240,12 +245,13 @@ struct TrackPoint: Codable {
                 guard seconds > 0 else { continue }
                 let meters = point.distance(from: last)
                 let speed = meters / seconds
-                if meters > 4 && speed < 50 && !walking {
+                // Manual rest can include walking away from the parked car. Never add
+                // that movement to vehicle mileage, even if motion detection lags.
+                let manualBreakActive = shift.breaks.last.map { $0.ended == nil } ?? false
+                if meters > 4 && speed < 50 && !walking && !manualBreakActive {
                     let km = meters / 1000
                     shift.kilometers += km
-                    if let i = shift.breaks.indices.last, shift.breaks[i].ended == nil {
-                        shift.restKilometers += km
-                    } else if let i = shift.rides.indices.last, shift.rides[i].ended == nil {
+                    if let i = shift.rides.indices.last, shift.rides[i].ended == nil {
                         shift.rides[i].kilometers += km
                     } else {
                         shift.emptyKilometers += km
