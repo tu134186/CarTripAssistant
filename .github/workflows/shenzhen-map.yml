@@ -28,6 +28,25 @@ jobs:
           osmium export shenzhen.osm.pbf -o shenzhen.geojson --overwrite
       - name: Render offline raster MBTiles
         run: python3 scripts/build_shenzhen_mbtiles.py shenzhen.geojson Shenzhen-Roads.mbtiles
+      - name: Validate rendered MBTiles and road detail
+        run: |
+          python3 - <<'PY'
+          import io, sqlite3
+          from PIL import Image
+          db = sqlite3.connect("Shenzhen-Roads.mbtiles")
+          fmt = db.execute("SELECT value FROM metadata WHERE name='format'").fetchone()
+          assert fmt and fmt[0] == "png", "MBTiles format is not PNG"
+          counts = dict(db.execute("SELECT zoom_level, COUNT(*) FROM tiles GROUP BY zoom_level"))
+          assert all(counts.get(z, 0) > 0 for z in range(10, 17)), f"Missing zoom levels: {counts}"
+          rows = db.execute("SELECT tile_data FROM tiles WHERE zoom_level=16 LIMIT 2000").fetchall()
+          detailed = 0
+          for (blob,) in rows:
+              im = Image.open(io.BytesIO(blob)).convert("RGB")
+              if len(im.getcolors(65536) or []) > 2:
+                  detailed += 1
+          assert detailed > 25, f"Only {detailed} detailed road tiles in z16 sample"
+          print(f"Verified zoom 10-16 tiles: {counts}; detailed z16 sample: {detailed}/{len(rows)}")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: Shenzhen-Offline-Map-MBTiles
