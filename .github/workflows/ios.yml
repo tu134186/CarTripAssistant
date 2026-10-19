@@ -29,8 +29,9 @@ jobs:
           ls -lh CarTripAssistant/OfflineMap.mbtiles
       - name: Generate app icon asset
         run: |
-          python3 -m pip install --user pillow
-          python3 scripts/create_app_icon.py
+          python3 -m venv /tmp/cartrip-icon-venv
+          /tmp/cartrip-icon-venv/bin/python -m pip install pillow
+          /tmp/cartrip-icon-venv/bin/python scripts/create_app_icon.py
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
