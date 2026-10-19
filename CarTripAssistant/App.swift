@@ -135,6 +135,7 @@ struct TrackPoint: Codable {
     var date: Date
     var accuracy: Double
     var speed: Double
+    var segmentStart: Bool = false
 }
 @MainActor final class TripStore: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var active: Shift?
@@ -147,6 +148,7 @@ struct TrackPoint: Codable {
     private var walking = false
     private var lastSavedLocation: CLLocation?
     private var lastSavedHeading: CLLocationDirection?
+    private var needsNewTrackSegment = true
     private var lastDiskWrite = Date.distantPast
     private struct Saved: Codable { var active: Shift?; var history: [Shift] }
     private var file: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("trips.json") }
@@ -246,6 +248,7 @@ struct TrackPoint: Codable {
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = Date() }
         shift.lastEmptyMovementAt = nil
         shift.breaks.append(BreakPeriod(started: Date(), kind: kind))
+        needsNewTrackSegment = true
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
@@ -257,6 +260,7 @@ struct TrackPoint: Codable {
         shift.breaks[i].ended = now
         shift.waitingPeriods.append(BreakPeriod(started: now))
         shift.lastEmptyMovementAt = nil
+        needsNewTrackSegment = true
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
@@ -360,9 +364,12 @@ struct TrackPoint: Codable {
             }
             previous = point
             // Walking during a meal or charging stop is not part of the vehicle track.
-            if !breakActive && !walking && shouldSaveTrackPoint(point) {
+            if (breakActive || walking) { needsNewTrackSegment = true }
+            if !breakActive && !walking && (needsNewTrackSegment || shouldSaveTrackPoint(point)) {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
-                                              date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed))
+                                              date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed,
+                                              segmentStart: needsNewTrackSegment || (previous.map { point.timestamp.timeIntervalSince($0.timestamp) > 120 } ?? false)))
+                needsNewTrackSegment = false
                 lastSavedLocation = point
                 if point.course >= 0 { lastSavedHeading = point.course }
             }
@@ -379,7 +386,12 @@ struct TrackPoint: Codable {
         let stamp = ISO8601DateFormatter()
         let name = "CarTrip-\(shift.started.formatted(.dateTime.year().month().day()))"
         var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<gpx version=\"1.1\" creator=\"CarTripAssistant\" xmlns=\"http://www.topografix.com/GPX/1/1\">\\n<trk><name>\(escape(name))</name><trkseg>\\n"
+        var priorDate: Date?
         for p in shift.points where (-90...90).contains(p.lat) && (-180...180).contains(p.lon) {
+            if p.segmentStart || (priorDate.map { p.date.timeIntervalSince($0) > 120 } ?? false) {
+                xml += "</trkseg><trkseg>\\n"
+            }
+            priorDate = p.date
             xml += "<trkpt lat=\"\(p.lat)\" lon=\"\(p.lon)\"><time>\(stamp.string(from: p.date))</time></trkpt>\\n"
         }
         xml += "</trkseg></trk></gpx>"
@@ -888,7 +900,7 @@ private struct TripRouteMap: UIViewRepresentable {
             let passenger = shift.rides.contains { ride in
                 p.date >= ride.started && p.date <= (ride.ended ?? Date())
             }
-            if passenger != segmentPassenger || (previousDate.map { p.date.timeIntervalSince($0) > 120 } ?? false) {
+            if p.segmentStart || passenger != segmentPassenger || (previousDate.map { p.date.timeIntervalSince($0) > 120 } ?? false) {
                 flush()
             }
             segmentPassenger = passenger
