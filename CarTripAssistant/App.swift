@@ -541,13 +541,11 @@ struct Dashboard: View {
                         if selectedTab == 0 {
                             if let shift = store.active {
                                 mileageCard(shift)
-                                liveMap(shift)
                                 metrics(shift)
                                 controls
                             } else {
                                 let idleShift = Shift(started: Date())
                                 mileageCard(idleShift)
-                                liveMap(idleShift)
                                 idleMetrics
                                 welcome
                             }
