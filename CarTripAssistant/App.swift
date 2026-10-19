@@ -46,6 +46,7 @@ struct TrackPoint: Codable {
     private var walking = false
     private var lastSavedLocation: CLLocation?
     private var lastSavedHeading: CLLocationDirection?
+    private var lastDiskWrite = Date.distantPast
     private struct Saved: Codable { var active: Shift?; var history: [Shift] }
     private var file: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("trips.json") }
     override init() {
@@ -59,9 +60,15 @@ struct TrackPoint: Codable {
         location.distanceFilter = 5
         location.pausesLocationUpdatesAutomatically = false
         location.allowsBackgroundLocationUpdates = true
-        if active != nil { resumeTracking() }
+        if active != nil {
+            if let p = active?.points.last {
+                lastSavedLocation = CLLocation(latitude: p.lat, longitude: p.lon)
+            }
+            resumeTracking()
+        }
     }
     private func save() {
+        lastDiskWrite = Date()
         if let data = try? JSONEncoder().encode(Saved(active: active, history: history)) {
             try? data.write(to: file, options: .atomic)
         }
@@ -188,7 +195,23 @@ struct TrackPoint: Codable {
         }
         active = shift
         gpsStatus = "GPS 记录中"
-        save()
+        if Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
+    }
+    func exportGPX(_ shift: Shift) -> URL? {
+        func escape(_ value: String) -> String {
+            value.replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+        }
+        let stamp = ISO8601DateFormatter()
+        let name = "CarTrip-\(shift.started.formatted(.dateTime.year().month().day()))"
+        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<gpx version=\"1.1\" creator=\"CarTripAssistant\" xmlns=\"http://www.topografix.com/GPX/1/1\">\\n<trk><name>\(escape(name))</name><trkseg>\\n"
+        for p in shift.points where (-90...90).contains(p.lat) && (-180...180).contains(p.lon) {
+            xml += "<trkpt lat=\"\(p.lat)\" lon=\"\(p.lon)\"><time>\(stamp.string(from: p.date))</time></trkpt>\\n"
+        }
+        xml += "</trkseg></trk></gpx>"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(shift.id.uuidString).gpx")
+        do { try xml.write(to: url, atomically: true, encoding: .utf8); return url }
+        catch { return nil }
     }
     func deleteHistory(_ id: UUID) {
         history.removeAll { $0.id == id }
@@ -239,6 +262,7 @@ struct Dashboard: View {
     @State private var showFinish = false
     @State private var showDiscard = false
     @State private var deletionTarget: UUID?
+    @State private var gpxExport: URL?
     private var riding: Bool { store.active?.rides.last.map { $0.ended == nil } ?? false }
     private var resting: Bool { store.active?.breaks.last.map { $0.ended == nil } ?? false }
     var body: some View {
@@ -268,6 +292,12 @@ struct Dashboard: View {
         }
         }
         .preferredColorScheme(.dark)
+        .sheet(item: Binding(
+            get: { gpxExport.map { ExportItem(url: $0) } },
+            set: { if $0 == nil { gpxExport = nil } }
+        )) { item in
+            ShareSheet(items: [item.url])
+        }
         .alert("结束今天的出车", isPresented: $showFinish) {
             TextField("今日流水（元）", text: $revenue).keyboardType(.decimalPad)
             TextField("备注（可选）", text: $notes)
@@ -499,6 +529,12 @@ struct Dashboard: View {
                         Image(systemName: "map")
                             .frame(width: 36, height: 42)
                     }
+                    Button {
+                        gpxExport = store.exportGPX(item)
+                    } label: {
+                        Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                            .frame(width: 32, height: 42)
+                    }
                     ShareLink(item: store.report(item)) {
                         Image(systemName: "square.and.arrow.up")
                             .frame(width: 36, height: 42)
@@ -628,4 +664,16 @@ private struct RouteDetail: View {
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
     }
+}
+
+private struct ExportItem: Identifiable {
+    let url: URL
+    var id: String { url.path }
+}
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
