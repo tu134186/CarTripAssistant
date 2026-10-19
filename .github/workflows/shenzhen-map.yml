@@ -50,8 +50,35 @@ jobs:
           assert detailed > 25, f"Only {detailed} detailed road tiles in z16 sample"
           print(f"Verified zoom 10-16 tiles: {counts}; detailed z16 sample: {detailed}/{len(rows)}")
           PY
+      - name: Export offline map preview for visual inspection
+        run: |
+          python3 - <<'PY'
+          import io, math, sqlite3
+          from PIL import Image
+          db = sqlite3.connect("Shenzhen-Roads.mbtiles")
+          z = 15
+          lon, lat = 114.05, 22.60
+          n = 2 ** z
+          cx = int((lon + 180) / 360 * n)
+          cy = int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n)
+          preview = Image.new("RGB", (1024, 1024), "#172433")
+          loaded = 0
+          for dx in range(-2, 2):
+              for dy in range(-2, 2):
+                  x, y = cx + dx, cy + dy
+                  row = db.execute("SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?", (z, x, n - 1 - y)).fetchone()
+                  if row:
+                      tile = Image.open(io.BytesIO(row[0])).convert("RGB")
+                      preview.paste(tile, ((dx + 2) * 256, (dy + 2) * 256))
+                      loaded += 1
+          assert loaded == 16, f"Missing central Shenzhen preview tiles: {loaded}/16"
+          preview.save("Shenzhen-Map-Preview.png")
+          print("Created 1024x1024 Shenzhen map preview with", loaded, "tiles")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: Shenzhen-Offline-Map-MBTiles
-          path: Shenzhen-Roads.mbtiles
+          path: |
+            Shenzhen-Roads.mbtiles
+            Shenzhen-Map-Preview.png
           retention-days: 30
