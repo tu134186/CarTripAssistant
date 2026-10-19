@@ -399,19 +399,27 @@ struct TrackPoint: Codable {
         save()
     }
     func report(_ shift: Shift) -> String {
-        let duration = (shift.ended ?? Date()).timeIntervalSince(shift.started)
+        let end = shift.ended ?? Date()
+        let duration = max(0, end.timeIntervalSince(shift.started))
+        let totals = shift.timeTotals(at: end)
+        let rest = totals.waiting + totals.manualRest
+        let work = totals.passenger + totals.empty
         return """
         车载行程助手 · 每日总结
         出车时间：\(shift.started.formatted())
-        结束时间：\((shift.ended ?? Date()).formatted())
+        结束时间：\(end.formatted())
         出车时长：\(Int(duration / 60)) 分钟
-        总休息时长（含等客）：\(Int((shift.restSeconds + shift.waitingSeconds(at: shift.ended ?? Date())) / 60)) 分钟
-        等客时长：\(Int(shift.waitingSeconds(at: shift.ended ?? Date()) / 60)) 分钟
-        工作时长：\(Int(max(0, duration - shift.restSeconds) / 60)) 分钟
+        总休息时长（含等客）：\(Int(rest / 60)) 分钟
+        等客时长：\(Int(totals.waiting / 60)) 分钟
+        吃饭休息：\(Int(totals.meal / 60)) 分钟
+        充电休息：\(Int(totals.charging / 60)) 分钟
+        其他休息：\(Int(totals.other / 60)) 分钟
+        载客时长：\(Int(totals.passenger / 60)) 分钟
+        空驶时长：\(Int(totals.empty / 60)) 分钟
+        非休息时长（载客+空驶）：\(Int(work / 60)) 分钟
         全天总里程：\(String(format: "%.2f", shift.kilometers)) 公里
         载客里程：\(String(format: "%.2f", shift.passengerKM)) 公里
         空驶里程：\(String(format: "%.2f", shift.emptyKilometers)) 公里
-        休息期间移动：\(String(format: "%.2f", shift.restKilometers)) 公里
         完成订单：\(shift.completedOrders) 单
         今日流水：\(shift.revenue)
         备注：\(shift.notes)
