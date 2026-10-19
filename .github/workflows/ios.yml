@@ -12,7 +12,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 39202922709 --repo "${{ github.repository }}" --name Shenzhen-Offline-Map-MBTiles --dir map-download
+          MAP_RUN=$(gh run list --repo "${{ github.repository }}" --workflow shenzhen-map.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "$MAP_RUN"
+          echo "Using Shenzhen map build run $MAP_RUN"
+          gh run download "$MAP_RUN" --repo "${{ github.repository }}" --name Shenzhen-Offline-Map-MBTiles --dir map-download
           test -s map-download/Shenzhen-Roads.mbtiles
           cp map-download/Shenzhen-Roads.mbtiles CarTripAssistant/OfflineMap.mbtiles
           ls -lh CarTripAssistant/OfflineMap.mbtiles
@@ -43,7 +46,7 @@ jobs:
                   db = sqlite3.connect(tmp.name)
                   fmt = db.execute("SELECT value FROM metadata WHERE name='format'").fetchone()[0]
                   count, low, high = db.execute("SELECT COUNT(*), MIN(zoom_level), MAX(zoom_level) FROM tiles").fetchone()
-                  assert fmt == "png" and count > 1000 and low <= 10 and high >= 15
+                  assert fmt == "png" and count > 1000 and low <= 10 and high >= 16
                   print(f"Verified embedded Shenzhen offline map: {len(blob)} bytes, {count} tiles, zoom {low}-{high}")
           PY
       - uses: actions/upload-artifact@v4
