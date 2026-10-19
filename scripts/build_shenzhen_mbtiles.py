@@ -45,7 +45,7 @@ def features(path):
 def render(input_path, output_path):
     roads = list(features(input_path))
     labeled_roads = sum(1 for _, name, _ in roads if name)
-    chinese_roads = sum(1 for _, name, _ in roads if any("\\u4e00" <= c <= "\\u9fff" for c in name))
+    chinese_roads = sum(1 for _, name, _ in roads if any(0x4E00 <= ord(c) <= 0x9FFF for c in name))
     print("Named road segments:", labeled_roads, "Chinese-named:", chinese_roads, flush=True)
     print("Road segments:", len(roads), flush=True)
     if not roads:
