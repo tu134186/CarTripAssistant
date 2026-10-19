@@ -251,7 +251,10 @@ struct TrackPoint: Codable {
                         shift.emptyKilometers += km
                         if meters >= 8 && speed >= 1.5 {
                             if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil {
-                                shift.waitingPeriods[i].ended = point.timestamp
+                                // The movement happened between two GPS samples. End waiting
+                                // at the previous sample rather than counting the driving interval.
+                                let boundary = max(shift.waitingPeriods[i].started, last.timestamp)
+                                shift.waitingPeriods[i].ended = min(boundary, point.timestamp)
                             }
                             shift.lastEmptyMovementAt = point.timestamp
                         }
