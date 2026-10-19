@@ -1,0 +1,19 @@
+name: CarTripAssistant
+options:
+  bundleIdPrefix: com.tu
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: '16.0'
+    SWIFT_VERSION: '5.0'
+    TARGETED_DEVICE_FAMILY: '1'
+targets:
+  CarTripAssistant:
+    type: application
+    platform: iOS
+    sources:
+      - CarTripAssistant
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tu.cartripassistant
+        INFOPLIST_FILE: CarTripAssistant/Info.plist
+        CODE_SIGNING_ALLOWED: NO
