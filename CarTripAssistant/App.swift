@@ -336,8 +336,10 @@ struct TrackPoint: Codable {
         guard let last = lastSavedLocation else { return true }
         let meters = point.distance(from: last)
         let elapsed = point.timestamp.timeIntervalSince(last.timestamp)
-        if elapsed >= 90 { return true }
-        if meters >= 100 { return true }
+        // Record road bends and empty-driving routes without waiting 100 m.
+        // GPS jitter alone must not generate dense stationary points.
+        if elapsed >= 30 { return true }
+        if meters >= max(25, min(45, point.horizontalAccuracy * 2)) { return true }
         // 转弯时增加轨迹密度，避免道路拐角被连成直线。
         if meters >= 20, point.course >= 0, let old = lastSavedHeading {
             let diff = abs(point.course - old)
@@ -404,17 +406,19 @@ struct TrackPoint: Codable {
                     stationarySince = nil
                 }
             }
-            previous = point
-            // Walking during a meal or charging stop is not part of the vehicle track.
-            if (breakActive || walking) { needsNewTrackSegment = true }
+            // Keep the previous sample until AFTER segment-gap detection.
+            // This applies equally to passenger trips and empty driving.
+            let gpsGap = previous.map { point.timestamp.timeIntervalSince($0.timestamp) > 120 } ?? false
+            if (breakActive || walking || gpsGap) { needsNewTrackSegment = true }
             if !breakActive && !walking && (needsNewTrackSegment || shouldSaveTrackPoint(point)) {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                               date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed,
-                                              segmentStart: needsNewTrackSegment || (previous.map { point.timestamp.timeIntervalSince($0.timestamp) > 120 } ?? false)))
+                                              segmentStart: needsNewTrackSegment))
                 needsNewTrackSegment = false
                 lastSavedLocation = point
                 if point.course >= 0 { lastSavedHeading = point.course }
             }
+            previous = point
         }
         active = shift
         gpsStatus = "GPS 记录中"
