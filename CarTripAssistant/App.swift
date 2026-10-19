@@ -469,7 +469,7 @@ struct TrackPoint: Codable {
         let rest = totals.waiting + totals.manualRest
         let work = totals.passenger + totals.empty
         return """
-        车载行程助手 · 每日总结
+        行程助手 · 每日总结
         出车时间：\(shift.started.formatted())
         结束时间：\(end.formatted())
         出车时长：\(Int(duration / 60)) 分钟
@@ -688,7 +688,7 @@ struct Dashboard: View {
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("车载行程助手").font(.system(size: 25, weight: .bold))
+                Text("行程助手").font(.system(size: 25, weight: .bold))
                 Text("记录每一趟行程 · 让工作更清晰")
                     .font(.system(size: 11)).foregroundStyle(Cockpit.muted)
             }
@@ -1231,7 +1231,7 @@ private struct ShareJourneyCard: View {
                 .font(.system(size: 14))
                 .padding(11)
                 .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 12))
-                Text("车载行程助手 · GPS 轨迹与里程为估算值")
+                Text("行程助手 · GPS 轨迹与里程为估算值")
                     .font(.system(size: 10)).foregroundStyle(Cockpit.muted)
                     .frame(maxWidth: .infinity)
             }.padding(12)
