@@ -502,6 +502,7 @@ struct Dashboard: View {
     @State private var revenue = ""
     @State private var notes = ""
     @State private var showFinish = false
+    @State private var detailShift: Shift?
     @State private var showDiscard = false
     @State private var deletionTarget: UUID?
     @State private var gpxExport: URL?
@@ -574,16 +575,89 @@ struct Dashboard: View {
         )) { item in
             ShareSheet(items: [item.url])
         }
-        .alert("结束今天的出车", isPresented: $showFinish) {
-            TextField("今日流水（元）", text: $revenue).keyboardType(.decimalPad)
-            TextField("备注（可选）", text: $notes)
-            Button("确认结束") {
-                store.finish(revenue: revenue, notes: notes)
-                revenue = ""; notes = ""
+        .sheet(isPresented: $showFinish) {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("填写今天的流水，收车后会与当天的里程、时间和订单一起保存。")
+                            .font(.subheadline).foregroundStyle(Cockpit.muted)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("今日流水（元）").font(.headline)
+                            HStack(spacing: 8) {
+                                Text("¥").font(.title2.bold()).foregroundStyle(Cockpit.green)
+                                TextField("例如 200", text: $revenue)
+                                    .keyboardType(.decimalPad)
+                                    .foregroundStyle(.white)
+                                    .tint(Cockpit.blue)
+                                    .font(.system(size: 25, weight: .bold, design: .rounded))
+                                    .accessibilityLabel("今日流水金额")
+                            }
+                            .padding(15)
+                            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
+                            Text(revenue.isEmpty ? "可留空，历史日报会标记为未填写" : "当前输入：¥" + revenue)
+                                .font(.caption).foregroundStyle(Cockpit.muted)
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("备注（可选）").font(.headline)
+                            TextField("例如：今日运营情况", text: $notes, axis: .vertical)
+                                .lineLimit(2...4)
+                                .foregroundStyle(.white)
+                                .tint(Cockpit.blue)
+                                .padding(14)
+                                .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                        Button {
+                            let clean = revenue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            store.finish(revenue: clean, notes: notes)
+                            revenue = ""; notes = ""
+                            showFinish = false
+                            selectedTab = 3
+                        } label: {
+                            Text("确认收车并保存")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity).padding(.vertical, 17)
+                                .foregroundStyle(.white)
+                                .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(20)
+                }
+                .background(Cockpit.background)
+                .navigationTitle("收车结算")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { showFinish = false }
+                    }
+                }
             }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("将保存今天的订单、休息时间和里程。")
+            .preferredColorScheme(.dark)
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $detailShift) { item in
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(item.started.formatted(date: .complete, time: .omitted))
+                            .font(.title2.bold())
+                        Text("今日流水").foregroundStyle(Cockpit.muted)
+                        Text(item.revenue.isEmpty ? "未填写" : "¥" + item.revenue)
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundStyle(Cockpit.green)
+                        Text(store.report(item))
+                            .font(.system(size: 14, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if !item.notes.isEmpty { Text("备注：" + item.notes).foregroundStyle(Cockpit.muted) }
+                    }
+                    .padding(20)
+                }
+                .background(Cockpit.background)
+                .navigationTitle("历史日报详情")
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { detailShift = nil } } }
+            }
+            .preferredColorScheme(.dark)
         }
         .confirmationDialog("放弃本次出车？", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("放弃本次出车（不可恢复）", role: .destructive) { store.discardShift() }
@@ -773,14 +847,14 @@ struct Dashboard: View {
                 action("结束休息 · 恢复行程", symbol: "play.fill", color: Cockpit.green) { store.endBreak() }
             } else {
                 HStack(spacing: 8) {
-                    action("乘客上车", symbol: "person.fill", color: Cockpit.blue) { store.startRide() }
+                    compactRest("乘客上车", "person.fill", Cockpit.blue) { store.startRide() }
                     compactRest("吃饭休息", "cup.and.saucer.fill", .orange) { store.startBreak(kind: .meal) }
                     compactRest("充电等待", "bolt.fill", .purple) { store.startBreak(kind: .charging) }
                     compactRest("其他休息", "sofa.fill", Cockpit.green) { store.startBreak(kind: .other) }
                 }
             }
             Button { showFinish = true } label: {
-                Label("结束出车", systemImage: "stop.fill")
+                Label("收车", systemImage: "stop.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .frame(maxWidth: .infinity).padding(.vertical, 12)
                     .foregroundStyle(.white)
@@ -826,7 +900,7 @@ struct Dashboard: View {
     }
     private var welcome: some View {
         Button { store.startShift() } label: {
-            Label("开始出车", systemImage: "play.fill")
+            Label("出车", systemImage: "play.fill")
                 .font(.system(size: 19, weight: .bold))
                 .frame(maxWidth: .infinity).frame(height: 60)
                 .foregroundStyle(.white)
@@ -856,6 +930,11 @@ struct Dashboard: View {
                             .font(.system(size: 16, weight: .bold))
                         Text("\(item.completedOrders) 单  ·  " + String(format: "%.2f km", item.kilometers))
                             .font(.system(size: 13)).foregroundStyle(Cockpit.muted)
+                        Text(item.revenue.isEmpty ? "今日流水：未填写" : "今日流水：¥" + item.revenue)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Cockpit.green)
+                        Button("查看完整日报") { detailShift = item }
+                            .font(.caption.bold()).foregroundStyle(Cockpit.blue)
                     }
                     Spacer(minLength: 5)
                     NavigationLink {
