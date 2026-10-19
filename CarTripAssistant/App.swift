@@ -731,11 +731,23 @@ private enum OfflineMap {
         let opened = sqlite3_open_v2(temp.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK
         var statement: OpaquePointer?
         let valid = opened && sqlite3_prepare_v2(db, "SELECT tile_data FROM tiles LIMIT 1", -1, &statement, nil) == SQLITE_OK
+            && sqlite3_step(statement) == SQLITE_ROW
         sqlite3_finalize(statement)
+        var raster = false
+        if valid {
+            var formatStatement: OpaquePointer?
+            if sqlite3_prepare_v2(db, "SELECT value FROM metadata WHERE name='format' LIMIT 1", -1, &formatStatement, nil) == SQLITE_OK,
+               sqlite3_step(formatStatement) == SQLITE_ROW,
+               let raw = sqlite3_column_text(formatStatement, 0) {
+                let format = String(cString: raw).lowercased()
+                raster = ["png", "jpg", "jpeg", "webp"].contains(format)
+            }
+            sqlite3_finalize(formatStatement)
+        }
         sqlite3_close(db)
-        guard valid else {
+        guard valid && raster else {
             try? fm.removeItem(at: temp)
-            throw NSError(domain: "OfflineMap", code: 1, userInfo: [NSLocalizedDescriptionKey: "不是有效的栅格 MBTiles 地图"])
+            throw NSError(domain: "OfflineMap", code: 1, userInfo: [NSLocalizedDescriptionKey: "需要带有 format=png/jpg/jpeg/webp 元数据且包含实际瓦片的栅格 MBTiles；矢量 pbf 不支持"])
         }
         let target = folder.appendingPathComponent("offline.mbtiles")
         if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
