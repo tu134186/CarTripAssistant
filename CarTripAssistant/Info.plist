@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>车载行程助手</string>
+<key>CFBundleDisplayName</key><string>车载行程助手</string>
+<key>CFBundleIdentifier</key><string>com.tu.cartripassistant</string>
+<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>1.0.0</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSRequiresIPhoneOS</key><true/>
+<key>UILaunchScreen</key><dict/>
+<key>NSLocationWhenInUseUsageDescription</key><string>用于记录出车期间车辆里程。</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>用于后台和锁屏时继续记录出车轨迹。</string>
+<key>NSMotionUsageDescription</key><string>用于辅助识别步行与驾车状态。</string>
+<key>UIBackgroundModes</key><array><string>location</string></array>
+</dict></plist>
