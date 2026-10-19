@@ -1,0 +1,30 @@
+name: Build Shenzhen Offline Map
+on:
+  workflow_dispatch:
+jobs:
+  map:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install map tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool python3-pil python3-pip
+      - name: Download Guangdong OSM extract
+        run: |
+          curl --fail --location --retry 3 --connect-timeout 30 \
+            https://download.geofabrik.de/asia/china/guangdong-latest.osm.pbf \
+            --output guangdong.osm.pbf
+          test -s guangdong.osm.pbf
+      - name: Extract Shenzhen area
+        run: |
+          osmium extract -b 113.70,22.35,114.65,22.90 guangdong.osm.pbf -o shenzhen.osm.pbf
+          osmium export shenzhen.osm.pbf -o shenzhen.geojson --overwrite
+      - name: Render offline raster MBTiles
+        run: python3 scripts/build_shenzhen_mbtiles.py shenzhen.geojson Shenzhen-Roads.mbtiles
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shenzhen-Offline-Map-MBTiles
+          path: Shenzhen-Roads.mbtiles
+          retention-days: 30
