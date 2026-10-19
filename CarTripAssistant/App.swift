@@ -454,11 +454,24 @@ struct Dashboard: View {
         return String(format: "%02d:%02d:%02d", hours, (seconds / 60) % 60, seconds % 60)
     }
     private func metrics(_ shift: Shift) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-            metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
-            metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
-            metric("非载客里程", String(format: "%.2f", max(0, shift.kilometers - shift.passengerKM)), "km", "point.topleft.down.curvedto.point.bottomright.up", .orange)
-            metric("累计休息", "\(Int(shift.restSeconds / 60))", "分钟", "cup.and.saucer.fill", .cyan)
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            let now = timeline.date
+            let passengerSeconds = shift.rides.reduce(0.0) { total, ride in
+                total + max(0, (ride.ended ?? now).timeIntervalSince(ride.started))
+            }
+            let restSeconds = shift.breaks.reduce(0.0) { total, rest in
+                total + max(0, (rest.ended ?? now).timeIntervalSince(rest.started))
+            }
+            let totalSeconds = max(0, now.timeIntervalSince(shift.started))
+            let emptySeconds = max(0, totalSeconds - passengerSeconds - restSeconds)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
+                metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
+                metric("空驶里程", String(format: "%.2f", max(0, shift.kilometers - shift.passengerKM)), "km", "point.topleft.down.curvedto.point.bottomright.up", .orange)
+                metric("载客总时长", clockString(Int(passengerSeconds)), "", "person.crop.circle", Cockpit.blue)
+                metric("空驶总时长", clockString(Int(emptySeconds)), "", "car.side", .orange)
+                metric("休息总时长", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", .cyan)
+            }
         }
     }
     private func metric(_ label: String, _ value: String, _ unit: String, _ symbol: String, _ tint: Color) -> some View {
