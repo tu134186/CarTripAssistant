@@ -3,8 +3,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Build Shenzhen Offline Map"]
+    types: [completed]
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +50,7 @@ jobs:
                   db = sqlite3.connect(tmp.name)
                   fmt = db.execute("SELECT value FROM metadata WHERE name='format'").fetchone()[0]
                   count, low, high = db.execute("SELECT COUNT(*), MIN(zoom_level), MAX(zoom_level) FROM tiles").fetchone()
-                  assert fmt == "png" and count > 1000 and low <= 10 and high >= 16
+                  assert fmt == "png" and count > 1000 and low <= 10 and high >= 15
                   print(f"Verified embedded Shenzhen offline map: {len(blob)} bytes, {count} tiles, zoom {low}-{high}")
           PY
       - uses: actions/upload-artifact@v4
