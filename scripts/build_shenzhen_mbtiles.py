@@ -44,9 +44,14 @@ def features(path):
 
 def render(input_path, output_path):
     roads = list(features(input_path))
+    labeled_roads = sum(1 for _, name, _ in roads if name)
+    chinese_roads = sum(1 for _, name, _ in roads if any("\\u4e00" <= c <= "\\u9fff" for c in name))
+    print("Named road segments:", labeled_roads, "Chinese-named:", chinese_roads, flush=True)
     print("Road segments:", len(roads), flush=True)
     if not roads:
         raise RuntimeError("No road features in Shenzhen extract")
+    if chinese_roads == 0:
+        raise RuntimeError("No Chinese road labels in Shenzhen source; refusing misleading map output")
     db = sqlite3.connect(output_path)
     db.executescript("""
         CREATE TABLE metadata (name TEXT, value TEXT);
@@ -115,6 +120,7 @@ def render(input_path, output_path):
         db.commit()
         print("Zoom", z, "tiles", count, flush=True)
     db.close()
+    print("Rendered road map with", chinese_roads, "Chinese-named road segments", flush=True)
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
