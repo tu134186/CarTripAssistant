@@ -87,9 +87,9 @@ struct Shift: Codable, Identifiable {
     }
     // Assign each instant to exactly one category. Priority resolves legacy
     // overlapping intervals without double-counting the full shift.
-    func timeTotals(at date: Date) -> (passenger: TimeInterval, waiting: TimeInterval, manualRest: TimeInterval, empty: TimeInterval) {
+    func timeTotals(at date: Date) -> (passenger: TimeInterval, waiting: TimeInterval, manualRest: TimeInterval, empty: TimeInterval, meal: TimeInterval, charging: TimeInterval, other: TimeInterval) {
         let limit = min(date, ended ?? date)
-        guard limit > started else { return (0, 0, 0, 0) }
+        guard limit > started else { return (0, 0, 0, 0, 0, 0, 0) }
         struct Event { let time: Date; let kind: Int; let delta: Int }
         var events: [Event] = []
         func append(_ from: Date, _ to: Date?, kind: Int) {
@@ -100,27 +100,32 @@ struct Shift: Codable, Identifiable {
             events.append(Event(time: b, kind: kind, delta: -1))
         }
         for ride in rides { append(ride.started, ride.ended, kind: 0) }
-        for period in breaks { append(period.started, period.ended, kind: 1) }
-        for period in waitingPeriods { append(period.started, period.ended, kind: 2) }
+        for period in breaks {
+            let kind = period.kind == .meal ? 1 : (period.kind == .charging ? 2 : 3)
+            append(period.started, period.ended, kind: kind)
+        }
+        for period in waitingPeriods { append(period.started, period.ended, kind: 4) }
         events.sort { $0.time < $1.time }
-        var counts = [0, 0, 0]
+        var counts = [0, 0, 0, 0, 0]
         var cursor = started
-        var totals = [0.0, 0.0, 0.0, 0.0]
+        // Passenger, meal, charging, other, waiting, empty.
+        var totals = [Double](repeating: 0, count: 6)
         var index = 0
+        func category() -> Int {
+            for kind in 0..<5 where counts[kind] > 0 { return kind }
+            return 5
+        }
         while index < events.count {
             let time = events[index].time
-            let duration = max(0, time.timeIntervalSince(cursor))
-            let category = counts[0] > 0 ? 0 : (counts[1] > 0 ? 1 : (counts[2] > 0 ? 2 : 3))
-            totals[category] += duration
+            totals[category()] += max(0, time.timeIntervalSince(cursor))
             while index < events.count && events[index].time == time {
                 counts[events[index].kind] += events[index].delta
                 index += 1
             }
             cursor = time
         }
-        let category = counts[0] > 0 ? 0 : (counts[1] > 0 ? 1 : (counts[2] > 0 ? 2 : 3))
-        totals[category] += max(0, limit.timeIntervalSince(cursor))
-        return (totals[0], totals[2], totals[1], totals[3])
+        totals[category()] += max(0, limit.timeIntervalSince(cursor))
+        return (totals[0], totals[4], totals[1] + totals[2] + totals[3], totals[5], totals[1], totals[2], totals[3])
     }
     var restSeconds: TimeInterval { breakSeconds(at: Date()) }
 }
@@ -653,9 +658,9 @@ struct Dashboard: View {
                 metric("空驶总时长", clockString(Int(emptySeconds)), "", "car.side", .orange)
                 metric("等客总时长", clockString(Int(waitingSeconds)), "", "clock.arrow.circlepath", Cockpit.green)
                 metric("休息总时长", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", .cyan)
-                metric("吃饭休息", clockString(Int(shift.breakSeconds(kind: .meal, at: now))), "", "fork.knife", .orange)
-                metric("充电休息", clockString(Int(shift.breakSeconds(kind: .charging, at: now))), "", "bolt.car.fill", Cockpit.green)
-                metric("其他休息", clockString(Int(shift.breakSeconds(kind: .other, at: now))), "", "cup.and.saucer", .cyan)
+                metric("吃饭休息", clockString(Int(totals.meal)), "", "fork.knife", .orange)
+                metric("充电休息", clockString(Int(totals.charging)), "", "bolt.car.fill", Cockpit.green)
+                metric("其他休息", clockString(Int(totals.other)), "", "cup.and.saucer", .cyan)
             }
         }
     }
