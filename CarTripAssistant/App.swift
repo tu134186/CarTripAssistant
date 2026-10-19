@@ -267,6 +267,7 @@ struct Dashboard: View {
     @State private var gpxExport: URL?
     private var riding: Bool { store.active?.rides.last.map { $0.ended == nil } ?? false }
     private var resting: Bool { store.active?.breaks.last.map { $0.ended == nil } ?? false }
+    private var activeRideStart: Date? { guard let ride = store.active?.rides.last, ride.ended == nil else { return nil }; return ride.started }
     var body: some View {
         NavigationStack {
         ZStack {
@@ -276,6 +277,7 @@ struct Dashboard: View {
                     header
                     if let shift = store.active {
                         mileageCard(shift)
+                        liveDurationCard(shift)
                         routeEntry(shift)
                         metrics(shift)
                         controls
@@ -288,9 +290,12 @@ struct Dashboard: View {
                         .padding(.horizontal, 4)
                 }
                 .padding(.horizontal, 18)
-                .padding(.top, 14)
-                .padding(.bottom, 34)
+                .padding(.top, 18)
+                .padding(.bottom, 48)
             }
+            .safeAreaPadding(.top, 8)
+            .safeAreaPadding(.bottom, 12)
+            .scrollClipDisabled(false)
         }
         }
         .preferredColorScheme(.dark)
@@ -404,6 +409,45 @@ struct Dashboard: View {
             in: RoundedRectangle(cornerRadius: 25)
         )
         .overlay(RoundedRectangle(cornerRadius: 25).stroke(Cockpit.blue.opacity(0.3), lineWidth: 1))
+    }
+    private func liveDurationCard(_ shift: Shift) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            let shiftSeconds = max(0, Int(timeline.date.timeIntervalSince(shift.started)))
+            let rideSeconds = activeRideStart.map { max(0, Int(timeline.date.timeIntervalSince($0))) }
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("本次出车时长", systemImage: "clock")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Cockpit.muted)
+                    Text(clockString(shiftSeconds))
+                        .font(.system(size: 27, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .monospacedDigit()
+                }
+                Spacer(minLength: 4)
+                if let rideSeconds {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text("当前载客计时")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Cockpit.green)
+                        Text(clockString(rideSeconds))
+                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Cockpit.green)
+                            .monospacedDigit()
+                    }
+                } else {
+                    Text(resting ? "休息中" : "等待接单")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Cockpit.muted)
+                }
+            }
+            .padding(17)
+            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 17))
+        }
+    }
+    private func clockString(_ seconds: Int) -> String {
+        let hours = seconds / 3600
+        return String(format: "%02d:%02d:%02d", hours, (seconds / 60) % 60, seconds % 60)
     }
     private func metrics(_ shift: Shift) -> some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
