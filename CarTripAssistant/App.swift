@@ -71,6 +71,7 @@ struct TrackPoint: Codable {
             resumeTracking()
         }
     }
+    func flushToDisk() { save() }
     private func save() {
         lastDiskWrite = Date()
         if let data = try? JSONEncoder().encode(Saved(active: active, history: history)) {
@@ -263,7 +264,17 @@ struct TrackPoint: Codable {
 }
 @main struct CarTripAssistantApp: App {
     @StateObject private var store = TripStore()
-    var body: some Scene { WindowGroup { Dashboard().environmentObject(store) } }
+    @Environment(\.scenePhase) private var scenePhase
+    var body: some Scene {
+        WindowGroup {
+            Dashboard().environmentObject(store)
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .inactive || phase == .background {
+                store.flushToDisk()
+            }
+        }
+    }
 }
 
 private enum Cockpit {
