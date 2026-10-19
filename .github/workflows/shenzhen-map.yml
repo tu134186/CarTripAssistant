@@ -6,6 +6,9 @@ on:
     paths:
       - 'scripts/build_shenzhen_mbtiles.py'
       - '.github/workflows/shenzhen-map.yml'
+concurrency:
+  group: shenzhen-map-production
+  cancel-in-progress: true
 jobs:
   map:
     runs-on: ubuntu-24.04
