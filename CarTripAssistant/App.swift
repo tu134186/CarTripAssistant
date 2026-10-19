@@ -85,6 +85,43 @@ struct Shift: Codable, Identifiable {
             return total + max(0, stop.timeIntervalSince(max(period.started, started)))
         }
     }
+    // Assign each instant to exactly one category. Priority resolves legacy
+    // overlapping intervals without double-counting the full shift.
+    func timeTotals(at date: Date) -> (passenger: TimeInterval, waiting: TimeInterval, manualRest: TimeInterval, empty: TimeInterval) {
+        let limit = min(date, ended ?? date)
+        guard limit > started else { return (0, 0, 0, 0) }
+        struct Event { let time: Date; let kind: Int; let delta: Int }
+        var events: [Event] = []
+        func append(_ from: Date, _ to: Date?, kind: Int) {
+            let a = max(from, started)
+            let b = min(to ?? limit, limit)
+            guard b > a else { return }
+            events.append(Event(time: a, kind: kind, delta: 1))
+            events.append(Event(time: b, kind: kind, delta: -1))
+        }
+        for ride in rides { append(ride.started, ride.ended, kind: 0) }
+        for period in breaks { append(period.started, period.ended, kind: 1) }
+        for period in waitingPeriods { append(period.started, period.ended, kind: 2) }
+        events.sort { $0.time < $1.time }
+        var counts = [0, 0, 0]
+        var cursor = started
+        var totals = [0.0, 0.0, 0.0, 0.0]
+        var index = 0
+        while index < events.count {
+            let time = events[index].time
+            let duration = max(0, time.timeIntervalSince(cursor))
+            let category = counts[0] > 0 ? 0 : (counts[1] > 0 ? 1 : (counts[2] > 0 ? 2 : 3))
+            totals[category] += duration
+            while index < events.count && events[index].time == time {
+                counts[events[index].kind] += events[index].delta
+                index += 1
+            }
+            cursor = time
+        }
+        let category = counts[0] > 0 ? 0 : (counts[1] > 0 ? 1 : (counts[2] > 0 ? 2 : 3))
+        totals[category] += max(0, limit.timeIntervalSince(cursor))
+        return (totals[0], totals[2], totals[1], totals[3])
+    }
     var restSeconds: TimeInterval { breakSeconds(at: Date()) }
 }
 struct TrackPoint: Codable {
@@ -602,14 +639,11 @@ struct Dashboard: View {
     private func metrics(_ shift: Shift) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             let now = min(timeline.date, shift.ended ?? timeline.date)
-            let passengerSeconds = shift.rides.reduce(0.0) { total, ride in
-                total + max(0, min(ride.ended ?? now, now).timeIntervalSince(max(ride.started, shift.started)))
-            }
-            let manualRestSeconds = shift.breakSeconds(at: now)
-            let totalSeconds = max(0, now.timeIntervalSince(shift.started))
-            let waitingSeconds = shift.waitingSeconds(at: now)
-            let restSeconds = manualRestSeconds + waitingSeconds
-            let emptySeconds = max(0, totalSeconds - passengerSeconds - restSeconds)
+            let totals = shift.timeTotals(at: now)
+            let passengerSeconds = totals.passenger
+            let waitingSeconds = totals.waiting
+            let restSeconds = totals.manualRest + totals.waiting
+            let emptySeconds = totals.empty
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
                 metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
