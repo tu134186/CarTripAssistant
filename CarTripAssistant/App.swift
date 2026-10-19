@@ -925,6 +925,7 @@ struct Dashboard: View {
             }
             ForEach(store.history) { item in
                 HStack(spacing: 12) {
+                    Button { detailShift = item } label: {
                     VStack(alignment: .leading, spacing: 7) {
                         Text(item.started.formatted(date: .abbreviated, time: .omitted))
                             .font(.system(size: 16, weight: .bold))
@@ -933,9 +934,13 @@ struct Dashboard: View {
                         Text(item.revenue.isEmpty ? "今日流水：未填写" : "今日流水：¥" + item.revenue)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Cockpit.green)
-                        Button("查看完整日报") { detailShift = item }
+                        Label("查看完整日报", systemImage: "chevron.right")
                             .font(.caption.bold()).foregroundStyle(Cockpit.blue)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     Spacer(minLength: 5)
                     NavigationLink {
                         RouteDetail(shift: item)
@@ -1014,7 +1019,7 @@ private struct TripRouteMap: UIViewRepresentable {
         }
         if entirelyWithinShenzhen, let url = OfflineMap.file {
             let tiles = OfflineRasterTiles(url: url)
-            tiles.canReplaceMapContent = true
+            tiles.canReplaceMapContent = false
             map.addOverlay(tiles, level: .aboveRoads)
         }
         guard !points.isEmpty else { return }
