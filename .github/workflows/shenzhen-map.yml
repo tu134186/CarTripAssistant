@@ -1,6 +1,11 @@
 name: Build Shenzhen Offline Map
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_shenzhen_mbtiles.py'
+      - '.github/workflows/shenzhen-map.yml'
 jobs:
   map:
     runs-on: ubuntu-24.04
