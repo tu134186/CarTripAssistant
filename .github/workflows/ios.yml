@@ -63,6 +63,15 @@ jobs:
                       f"Expected verified Shenzhen z16 map, got {count} tiles, z{low}-{high}")
                   print(f"Verified embedded Shenzhen offline map: {len(blob)} bytes, {count} tiles, zoom {low}-{high}")
           PY
+      - name: Package V2.2.1 source archive
+        run: |
+          git archive --format=zip --output="V2.2.1-行程助手-源码.zip" HEAD
+          unzip -t "V2.2.1-行程助手-源码.zip" | tail -1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: V2.2.1-行程助手-源码
+          path: V2.2.1-行程助手-源码.zip
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: CarTripAssistant-V2.2.1-unsigned-IPA
