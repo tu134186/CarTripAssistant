@@ -2,6 +2,8 @@ import SwiftUI
 import CoreLocation
 import CoreMotion
 import MapKit
+import SQLite3
+import UniformTypeIdentifiers
 
 struct Ride: Codable, Identifiable {
     var id = UUID()
@@ -569,6 +571,11 @@ private struct TripRouteMap: UIViewRepresentable {
         map.overrideUserInterfaceStyle = .dark
         map.showsCompass = true
         map.isRotateEnabled = false
+        if let url = OfflineMap.file {
+            let tiles = OfflineRasterTiles(url: url)
+            tiles.canReplaceMapContent = true
+            map.addOverlay(tiles, level: .aboveRoads)
+        }
         return map
     }
     func updateUIView(_ map: MKMapView, context: Context) {
@@ -576,7 +583,7 @@ private struct TripRouteMap: UIViewRepresentable {
         guard lastCount != shift.points.count || context.coordinator.shiftID != shift.id else { return }
         context.coordinator.lastCount = shift.points.count
         context.coordinator.shiftID = shift.id
-        map.removeOverlays(map.overlays)
+        map.removeOverlays(map.overlays.filter { !($0 is MKTileOverlay) })
         map.removeAnnotations(map.annotations)
         let points = shift.points.filter {
             (-90...90).contains($0.lat) && (-180...180).contains($0.lon)
@@ -627,6 +634,7 @@ private struct TripRouteMap: UIViewRepresentable {
         var lastCount = -1
         var shiftID: UUID?
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let tile = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tile) }
             let renderer = MKPolylineRenderer(overlay: overlay)
             renderer.strokeColor = (overlay as? RouteOverlay)?.isPassenger == true ? .systemGreen : .systemBlue
             renderer.lineWidth = 5
@@ -637,10 +645,21 @@ private struct TripRouteMap: UIViewRepresentable {
 }
 private struct RouteDetail: View {
     let shift: Shift
+    @State private var importMap = false
+    @State private var mapRevision = 0
+    @State private var mapError: String?
     var body: some View {
         VStack(spacing: 0) {
             TripRouteMap(shift: shift)
+                .id(mapRevision)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            HStack {
+                Text(OfflineMap.file == nil ? "在线地图" : "本地离线地图")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("导入 MBTiles 地图") { importMap = true }
+                    .font(.caption.bold())
+            }.padding(.horizontal, 15).padding(.top, 10)
             HStack(spacing: 18) {
                 Label("全天轨迹", systemImage: "line.diagonal").foregroundStyle(.blue)
                 Label("载客区间", systemImage: "line.diagonal").foregroundStyle(.green)
@@ -660,6 +679,23 @@ private struct RouteDetail: View {
             .padding(16)
         }
         .background(Cockpit.background)
+        .fileImporter(isPresented: $importMap, allowedContentTypes: [UTType(filenameExtension: "mbtiles") ?? .data]) { outcome in
+            switch outcome {
+            case .success(let url):
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    try OfflineMap.install(url)
+                    mapRevision += 1
+                } catch { mapError = error.localizedDescription }
+            case .failure(let error): mapError = error.localizedDescription
+            }
+        }
+        .alert("离线地图导入失败", isPresented: Binding(
+            get: { mapError != nil }, set: { if !$0 { mapError = nil } }
+        )) {
+            Button("确定") { mapError = nil }
+        } message: { Text(mapError ?? "") }
         .navigationTitle("行驶足迹")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
@@ -676,4 +712,68 @@ private struct ShareSheet: UIViewControllerRepresentable {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+private enum OfflineMap {
+    static var file: URL? {
+        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let url = folder.appendingPathComponent("offline.mbtiles")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+    static func install(_ source: URL) throws {
+        let fm = FileManager.default
+        let folder = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let temp = folder.appendingPathComponent("incoming.mbtiles")
+        if fm.fileExists(atPath: temp.path) { try fm.removeItem(at: temp) }
+        try fm.copyItem(at: source, to: temp)
+        var db: OpaquePointer?
+        let opened = sqlite3_open_v2(temp.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK
+        var statement: OpaquePointer?
+        let valid = opened && sqlite3_prepare_v2(db, "SELECT tile_data FROM tiles LIMIT 1", -1, &statement, nil) == SQLITE_OK
+        sqlite3_finalize(statement)
+        sqlite3_close(db)
+        guard valid else {
+            try? fm.removeItem(at: temp)
+            throw NSError(domain: "OfflineMap", code: 1, userInfo: [NSLocalizedDescriptionKey: "不是有效的栅格 MBTiles 地图"])
+        }
+        let target = folder.appendingPathComponent("offline.mbtiles")
+        if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
+        try fm.moveItem(at: temp, to: target)
+    }
+}
+private final class OfflineRasterTiles: MKTileOverlay {
+    private let fileURL: URL
+    init(url: URL) {
+        fileURL = url
+        super.init(urlTemplate: nil)
+        tileSize = CGSize(width: 256, height: 256)
+    }
+    override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, Error?) -> Void) {
+        DispatchQueue.global(qos: .utility).async {
+            var db: OpaquePointer?
+            guard sqlite3_open_v2(self.fileURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+                sqlite3_close(db)
+                result(nil, NSError(domain: "OfflineMap", code: 2))
+                return
+            }
+            defer { sqlite3_close(db) }
+            var query: OpaquePointer?
+            let sql = "SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=? LIMIT 1"
+            guard sqlite3_prepare_v2(db, sql, -1, &query, nil) == SQLITE_OK else {
+                sqlite3_finalize(query)
+                result(nil, NSError(domain: "OfflineMap", code: 3))
+                return
+            }
+            defer { sqlite3_finalize(query) }
+            sqlite3_bind_int(query, 1, Int32(path.z))
+            sqlite3_bind_int(query, 2, Int32(path.x))
+            sqlite3_bind_int(query, 3, Int32((1 << path.z) - 1 - path.y))
+            if sqlite3_step(query) == SQLITE_ROW, let pointer = sqlite3_column_blob(query, 0) {
+                result(Data(bytes: pointer, count: Int(sqlite3_column_bytes(query, 0))), nil)
+            } else {
+                result(nil, NSError(domain: "OfflineMap", code: 4))
+            }
+        }
+    }
 }
