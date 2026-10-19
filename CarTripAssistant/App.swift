@@ -21,6 +21,8 @@ struct Shift: Codable, Identifiable {
     var started: Date
     var ended: Date?
     var kilometers: Double = 0
+    var emptyKilometers: Double = 0
+    var restKilometers: Double = 0
     var rides: [Ride] = []
     var breaks: [BreakPeriod] = []
     var revenue: String = ""
@@ -183,8 +185,15 @@ struct TrackPoint: Codable {
                 let meters = point.distance(from: last)
                 let speed = meters / seconds
                 if meters > 4 && speed < 50 && !walking {
-                    shift.kilometers += meters / 1000
-                    if let i = shift.rides.indices.last, shift.rides[i].ended == nil { shift.rides[i].kilometers += meters / 1000 }
+                    let km = meters / 1000
+                    shift.kilometers += km
+                    if let i = shift.breaks.indices.last, shift.breaks[i].ended == nil {
+                        shift.restKilometers += km
+                    } else if let i = shift.rides.indices.last, shift.rides[i].ended == nil {
+                        shift.rides[i].kilometers += km
+                    } else {
+                        shift.emptyKilometers += km
+                    }
                 }
             }
             previous = point
@@ -237,7 +246,8 @@ struct TrackPoint: Codable {
         工作时长：\(Int(max(0, duration - shift.restSeconds) / 60)) 分钟
         全天总里程：\(String(format: "%.2f", shift.kilometers)) 公里
         载客里程：\(String(format: "%.2f", shift.passengerKM)) 公里
-        非载客里程：\(String(format: "%.2f", max(0, shift.kilometers - shift.passengerKM))) 公里
+        空驶里程：\(String(format: "%.2f", shift.emptyKilometers)) 公里
+        休息期间移动：\(String(format: "%.2f", shift.restKilometers)) 公里
         完成订单：\(shift.completedOrders) 单
         今日流水：\(shift.revenue)
         备注：\(shift.notes)
@@ -466,7 +476,7 @@ struct Dashboard: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
                 metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
-                metric("空驶里程", String(format: "%.2f", max(0, shift.kilometers - shift.passengerKM)), "km", "point.topleft.down.curvedto.point.bottomright.up", .orange)
+                metric("空驶里程", String(format: "%.2f", shift.emptyKilometers), "km", "point.topleft.down.curvedto.point.bottomright.up", .orange)
                 metric("载客总时长", clockString(Int(passengerSeconds)), "", "person.crop.circle", Cockpit.blue)
                 metric("空驶总时长", clockString(Int(emptySeconds)), "", "car.side", .orange)
                 metric("休息总时长", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", .cyan)
