@@ -96,11 +96,21 @@ struct TrackPoint: Codable {
     private var lastDiskWrite = Date.distantPast
     private struct Saved: Codable { var active: Shift?; var history: [Shift] }
     private var file: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("trips.json") }
+    private var backupFile: URL { file.deletingLastPathComponent().appendingPathComponent("trips-backup.json") }
+    private var safeToWrite = true
     override init() {
         super.init()
-        if let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
+        let primaryData = try? Data(contentsOf: file)
+        let backupData = try? Data(contentsOf: backupFile)
+        let saved = primaryData.flatMap { try? JSONDecoder().decode(Saved.self, from: $0) }
+            ?? backupData.flatMap { try? JSONDecoder().decode(Saved.self, from: $0) }
+        if let saved {
             active = saved.active
             history = saved.history
+        } else if primaryData != nil || backupData != nil {
+            // Never overwrite an unreadable trip archive with an empty one.
+            safeToWrite = false
+            gpsStatus = "历史记录读取失败，请先备份数据"
         }
         location.delegate = self
         location.desiredAccuracy = kCLLocationAccuracyBest
@@ -116,9 +126,18 @@ struct TrackPoint: Codable {
     }
     func flushToDisk() { save() }
     private func save() {
-        lastDiskWrite = Date()
-        if let data = try? JSONEncoder().encode(Saved(active: active, history: history)) {
-            try? data.write(to: file, options: .atomic)
+        guard safeToWrite else { return }
+        guard let data = try? JSONEncoder().encode(Saved(active: active, history: history)) else { return }
+        // Preserve the previous valid snapshot before replacing the main archive.
+        if let old = try? Data(contentsOf: file),
+           (try? JSONDecoder().decode(Saved.self, from: old)) != nil {
+            try? old.write(to: backupFile, options: .atomic)
+        }
+        do {
+            try data.write(to: file, options: .atomic)
+            lastDiskWrite = Date()
+        } catch {
+            gpsStatus = "保存失败：请检查存储空间"
         }
     }
     private func resumeTracking() {
