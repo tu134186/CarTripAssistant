@@ -654,7 +654,7 @@ private struct RouteDetail: View {
                 .id(mapRevision)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack {
-                Text(OfflineMap.file == nil ? "在线地图" : "本地离线地图")
+                Text(OfflineMap.file == nil ? "在线地图" : "深圳离线道路地图 · © OpenStreetMap")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("导入 MBTiles 地图") { importMap = true }
@@ -718,7 +718,8 @@ private enum OfflineMap {
     static var file: URL? {
         let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let url = folder.appendingPathComponent("offline.mbtiles")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        if FileManager.default.fileExists(atPath: url.path) { return url }
+        return Bundle.main.url(forResource: "OfflineMap", withExtension: "mbtiles")
     }
     static func install(_ source: URL) throws {
         let fm = FileManager.default
