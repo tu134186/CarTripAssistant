@@ -272,9 +272,14 @@ struct Dashboard: View {
         NavigationStack {
         ZStack {
             Cockpit.background.ignoresSafeArea()
-            ScrollView {
+            VStack(spacing: 0) {
+                header
+                    .padding(.horizontal, 18)
+                    .padding(.top, 12)
+                    .padding(.bottom, 14)
+                    .background(Cockpit.background)
+                ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    header
                     if let shift = store.active {
                         mileageCard(shift)
                         liveDurationCard(shift)
@@ -293,9 +298,8 @@ struct Dashboard: View {
                 .padding(.top, 18)
                 .padding(.bottom, 48)
             }
-            .safeAreaPadding(.top, 8)
-            .safeAreaPadding(.bottom, 12)
-            .scrollClipDisabled(false)
+                }
+            }
         }
         }
         .preferredColorScheme(.dark)
