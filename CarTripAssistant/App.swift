@@ -571,11 +571,8 @@ private struct TripRouteMap: UIViewRepresentable {
         map.overrideUserInterfaceStyle = .dark
         map.showsCompass = true
         map.isRotateEnabled = false
-        if let url = OfflineMap.file {
-            let tiles = OfflineRasterTiles(url: url)
-            tiles.canReplaceMapContent = true
-            map.addOverlay(tiles, level: .aboveRoads)
-        }
+        let shenzhen = CLLocationCoordinate2D(latitude: 22.60, longitude: 114.05)
+        map.setRegion(MKCoordinateRegion(center: shenzhen, span: MKCoordinateSpan(latitudeDelta: 0.45, longitudeDelta: 0.65)), animated: false)
         return map
     }
     func updateUIView(_ map: MKMapView, context: Context) {
@@ -583,10 +580,18 @@ private struct TripRouteMap: UIViewRepresentable {
         guard lastCount != shift.points.count || context.coordinator.shiftID != shift.id else { return }
         context.coordinator.lastCount = shift.points.count
         context.coordinator.shiftID = shift.id
-        map.removeOverlays(map.overlays.filter { !($0 is MKTileOverlay) })
+        map.removeOverlays(map.overlays)
         map.removeAnnotations(map.annotations)
         let points = shift.points.filter {
             (-90...90).contains($0.lat) && (-180...180).contains($0.lon)
+        }
+        let entirelyWithinShenzhen = !points.isEmpty && points.allSatisfy {
+            (113.70...114.65).contains($0.lon) && (22.35...22.90).contains($0.lat)
+        }
+        if entirelyWithinShenzhen, let url = OfflineMap.file {
+            let tiles = OfflineRasterTiles(url: url)
+            tiles.canReplaceMapContent = true
+            map.addOverlay(tiles, level: .aboveRoads)
         }
         guard !points.isEmpty else { return }
         // 分段绘制：载客为绿色，其余为蓝色；定位时间间隔过长则断开，不画跨城直线。
@@ -654,7 +659,7 @@ private struct RouteDetail: View {
                 .id(mapRevision)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack {
-                Text(OfflineMap.file == nil ? "在线地图" : "深圳离线道路地图 · © OpenStreetMap")
+                Text(OfflineMap.file == nil ? "在线地图" : "已内置深圳离线道路图 · © OpenStreetMap")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("导入 MBTiles 地图") { importMap = true }
