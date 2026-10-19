@@ -1028,6 +1028,12 @@ struct Dashboard: View {
                     .buttonStyle(.plain)
                     Spacer(minLength: 5)
                     NavigationLink {
+                        ShareJourneyCard(shift: item)
+                    } label: {
+                        Image(systemName: "rectangle.portrait.on.rectangle.portrait")
+                            .frame(width: 30, height: 42)
+                    }
+                    NavigationLink {
                         RouteDetail(shift: item)
                     } label: {
                         Image(systemName: "map")
@@ -1162,6 +1168,74 @@ private struct TripRouteMap: UIViewRepresentable {
             renderer.alpha = 0.9
             return renderer
         }
+    }
+}
+private struct ShareJourneyCard: View {
+    let shift: Shift
+    private func clock(_ t: TimeInterval) -> String {
+        let n = max(0, Int(t))
+        return String(format: "%02d:%02d:%02d", n / 3600, (n / 60) % 60, n % 60)
+    }
+    private func tile(_ title: String, _ value: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title).font(.system(size: 12)).foregroundStyle(Cockpit.muted)
+            Text(value).font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+        .padding(11)
+        .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 12))
+    }
+    var body: some View {
+        let end = shift.ended ?? Date()
+        let totals = shift.timeTotals(at: end)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("今日行程报告").font(.system(size: 23, weight: .bold))
+                        Text(shift.started.formatted(date: .complete, time: .omitted))
+                            .font(.caption).foregroundStyle(Cockpit.muted)
+                    }
+                    Spacer()
+                    Image(systemName: "car.side.fill").font(.title2).foregroundStyle(Cockpit.blue)
+                }
+                TripRouteMap(shift: shift)
+                    .frame(height: 250)
+                    .clipShape(RoundedRectangle(cornerRadius: 15))
+                    .allowsHitTesting(false)
+                HStack(spacing: 12) {
+                    Label("全天轨迹", systemImage: "line.diagonal").foregroundStyle(Cockpit.blue)
+                    Label("载客路段", systemImage: "line.diagonal").foregroundStyle(Cockpit.green)
+                    Spacer()
+                    Text("\(shift.points.count) 点").foregroundStyle(Cockpit.muted)
+                }.font(.system(size: 11))
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                    tile("全天总里程", String(format: "%.2f km", shift.kilometers), .white)
+                    tile("完成订单", "\(shift.completedOrders) 单", Cockpit.green)
+                    tile("载客里程", String(format: "%.2f km", shift.passengerKM), Cockpit.blue)
+                    tile("空驶里程", String(format: "%.2f km", shift.emptyKilometers), .orange)
+                    tile("总休息时间", clock(totals.waiting + totals.manualRest), .purple)
+                    tile("本次出车时长", clock(end.timeIntervalSince(shift.started)), .cyan)
+                }
+                HStack {
+                    Text("今日流水").foregroundStyle(Cockpit.muted)
+                    Spacer()
+                    Text(shift.revenue.isEmpty ? "未填写" : "¥" + shift.revenue)
+                        .foregroundStyle(Cockpit.green).fontWeight(.bold)
+                }
+                .font(.system(size: 14))
+                .padding(11)
+                .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 12))
+                Text("车载行程助手 · GPS 轨迹与里程为估算值")
+                    .font(.system(size: 10)).foregroundStyle(Cockpit.muted)
+                    .frame(maxWidth: .infinity)
+            }.padding(12)
+        }
+        .background(Cockpit.background)
+        .navigationTitle("行程分享卡")
+        .navigationBarTitleDisplayMode(.inline)
+        .preferredColorScheme(.dark)
     }
 }
 private struct RouteDetail: View {
