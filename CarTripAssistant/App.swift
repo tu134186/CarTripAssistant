@@ -200,6 +200,7 @@ struct TrackPoint: Codable {
         recordBoundaryPoint(&shift)
         shift.breaks[i].ended = Date()
         shift.waitingPeriods.append(BreakPeriod(started: Date()))
+        shift.lastEmptyMovementAt = nil
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
@@ -602,11 +603,14 @@ struct Dashboard: View {
                 metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
                 metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
                 metric("空驶里程", String(format: "%.2f", shift.emptyKilometers), "km", "point.topleft.down.curvedto.point.bottomright.up", .orange)
-                metric("休息期间移动", String(format: "%.2f", shift.restKilometers), "km", "cup.and.saucer", .cyan)
+                metric("总行驶里程", String(format: "%.2f", shift.kilometers), "km", "car.fill", .cyan)
                 metric("载客总时长", clockString(Int(passengerSeconds)), "", "person.crop.circle", Cockpit.blue)
                 metric("空驶总时长", clockString(Int(emptySeconds)), "", "car.side", .orange)
                 metric("等客总时长", clockString(Int(waitingSeconds)), "", "clock.arrow.circlepath", Cockpit.green)
                 metric("休息总时长", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", .cyan)
+                metric("吃饭休息", clockString(Int(shift.breaks.filter { $0.kind == .meal }.reduce(0.0) { $0 + max(0, ($1.ended ?? now).timeIntervalSince($1.started)) })), "", "fork.knife", .orange)
+                metric("充电休息", clockString(Int(shift.breaks.filter { $0.kind == .charging }.reduce(0.0) { $0 + max(0, ($1.ended ?? now).timeIntervalSince($1.started)) })), "", "bolt.car.fill", Cockpit.green)
+                metric("其他休息", clockString(Int(shift.breaks.filter { $0.kind == .other }.reduce(0.0) { $0 + max(0, ($1.ended ?? now).timeIntervalSince($1.started)) })), "", "cup.and.saucer", .cyan)
             }
         }
     }
