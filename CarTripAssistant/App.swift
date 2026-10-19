@@ -160,6 +160,9 @@ struct TrackPoint: Codable {
     @Published var history: [Shift] = []
     @Published var gpsStatus = "等待定位"
     @Published var motionStatus = "未知"
+    @Published var gpsAccuracy: Double?
+    @Published var gpsSpeed: Double?
+    @Published var gpsLastUpdate: Date?
     private let location = CLLocationManager()
     private let motion = CMMotionActivityManager()
     private var previous: CLLocation?
@@ -352,6 +355,9 @@ struct TrackPoint: Codable {
         guard var shift = active else { return }
         for point in locations {
             guard point.horizontalAccuracy > 0, point.horizontalAccuracy <= 35, abs(point.timestamp.timeIntervalSinceNow) < 30 else { continue }
+            gpsAccuracy = point.horizontalAccuracy
+            gpsSpeed = point.speed >= 0 ? point.speed * 3.6 : nil
+            gpsLastUpdate = point.timestamp
             if let last = previous {
                 let seconds = point.timestamp.timeIntervalSince(last.timestamp)
                 guard seconds > 0 else { continue }
@@ -413,6 +419,12 @@ struct TrackPoint: Codable {
         active = shift
         gpsStatus = "GPS 记录中"
         if Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
+    }
+    func exportArchive() -> URL? {
+        guard let data = try? JSONEncoder().encode(Saved(active: active, history: history)) else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("CarTripAssistant-Backup.json")
+        do { try data.write(to: url, options: .atomic); return url }
+        catch { return nil }
     }
     func exportGPX(_ shift: Shift) -> URL? {
         func escape(_ value: String) -> String {
@@ -543,16 +555,7 @@ struct Dashboard: View {
                                 Text("开始出车后显示实时轨迹").foregroundStyle(Cockpit.muted)
                             }
                         } else if selectedTab == 2 {
-                            Text("行程统计").font(.title2.bold())
-                            if let shift = store.active {
-                                mileageCard(shift)
-                                metrics(shift)
-                            } else if let last = store.history.first {
-                                mileageCard(last)
-                                metrics(last)
-                            } else {
-                                Text("暂无行程统计").foregroundStyle(Cockpit.muted)
-                            }
+                            toolsPage
                         } else {
                             historySection
                         }
@@ -695,11 +698,82 @@ struct Dashboard: View {
         }
         .foregroundStyle(.white)
     }
+    private var toolsPage: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("驾驶工具箱").font(.system(size: 23, weight: .bold))
+            Text("定位诊断 · 停车识别 · 行程备份")
+                .font(.caption).foregroundStyle(Cockpit.muted)
+            VStack(alignment: .leading, spacing: 12) {
+                Label("GPS 定位状态", systemImage: "location.circle.fill")
+                    .font(.headline).foregroundStyle(Cockpit.blue)
+                toolRow("定位", store.gpsStatus)
+                toolRow("定位精度", store.gpsAccuracy.map { String(format: "±%.0f 米", $0) } ?? "暂无有效数据")
+                toolRow("GPS 速度", store.gpsSpeed.map { String(format: "%.1f km/h", $0) } ?? "暂无有效数据")
+                toolRow("最近定位", store.gpsLastUpdate.map { $0.formatted(date: .omitted, time: .standard) } ?? "尚未收到")
+                Text("GPS 速度和位置可能漂移；显示 0 km/h 不等于已确认停车。")
+                    .font(.caption).foregroundStyle(Cockpit.muted)
+            }
+            .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
+            VStack(alignment: .leading, spacing: 12) {
+                Label("停车与等客识别", systemImage: "car.side.fill")
+                    .font(.headline).foregroundStyle(Cockpit.green)
+                toolRow("运营状态", store.active == nil ? "未出车" : (riding ? "载客中" : (resting ? "手动休息中" : "出车中")))
+                toolRow("运动识别", store.motionStatus)
+                if let shift = store.active {
+                    let waiting = shift.waitingPeriods.last
+                    toolRow("等客计时", waiting?.ended == nil && waiting != nil ? "正在累计" : "未在累计")
+                    toolRow("轨迹点数", "\(shift.points.count) 个")
+                } else {
+                    Text("点击出车后，才能记录停车和等客状态。")
+                        .font(.caption).foregroundStyle(Cockpit.muted)
+                }
+                Text("仅显示当前识别结果；GPS 中断时不能保证自动识别停车。")
+                    .font(.caption).foregroundStyle(Cockpit.muted)
+            }
+            .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
+            VStack(alignment: .leading, spacing: 12) {
+                Label("数据备份", systemImage: "externaldrive.fill")
+                    .font(.headline).foregroundStyle(.purple)
+                Text("导出包含历史日报、流水、轨迹及当前出车状态的 JSON 备份文件。")
+                    .font(.subheadline).foregroundStyle(Cockpit.muted)
+                Button {
+                    store.flushToDisk()
+                    gpxExport = store.exportArchive()
+                } label: {
+                    Label("导出完整行程备份", systemImage: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .bold))
+                        .frame(maxWidth: .infinity).padding(.vertical, 13)
+                        .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                Text("目前提供备份导出；恢复导入尚未开放，避免误覆盖原有记录。")
+                    .font(.caption).foregroundStyle(Cockpit.muted)
+            }
+            .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
+            VStack(alignment: .leading, spacing: 8) {
+                Label("行程诊断", systemImage: "waveform.path.ecg")
+                    .font(.headline).foregroundStyle(.orange)
+                toolRow("历史记录", "\(store.history.count) 条")
+                toolRow("当前行程", store.active == nil ? "无" : "记录中")
+                Text("原地停车出现里程增加时，可查看 GPS 精度、速度和运动识别数据。")
+                    .font(.caption).foregroundStyle(Cockpit.muted)
+            }
+            .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
+        }
+    }
+    private func toolRow(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).foregroundStyle(Cockpit.muted)
+            Spacer(minLength: 12)
+            Text(value).fontWeight(.semibold).multilineTextAlignment(.trailing)
+        }
+        .font(.system(size: 14))
+    }
     private var bottomTabs: some View {
         HStack(spacing: 0) {
             tab("首页", "house.fill", index: 0)
             tab("轨迹", "map.fill", index: 1)
-            tab("统计", "chart.bar.fill", index: 2)
+            tab("工具", "wrench.and.screwdriver.fill", index: 2)
             tab("记录", "doc.text.fill", index: 3)
         }
         .padding(.top, 10).padding(.bottom, 5)
