@@ -585,7 +585,8 @@ private struct TripRouteMap: UIViewRepresentable {
         let points = shift.points.filter {
             (-90...90).contains($0.lat) && (-180...180).contains($0.lon)
         }
-        let entirelyWithinShenzhen = !points.isEmpty && points.allSatisfy {
+        // An empty track should still display the bundled Shenzhen offline map.
+        let entirelyWithinShenzhen = points.allSatisfy {
             (113.70...114.65).contains($0.lon) && (22.35...22.90).contains($0.lat)
         }
         if entirelyWithinShenzhen, let url = OfflineMap.file {
