@@ -167,6 +167,7 @@ struct TrackPoint: Codable {
     private var lastSavedLocation: CLLocation?
     private var lastSavedHeading: CLLocationDirection?
     private var needsNewTrackSegment = true
+    private var stationarySince: Date?
     private var lastDiskWrite = Date.distantPast
     private struct Saved: Codable { var active: Shift?; var history: [Shift] }
     private var file: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("trips.json") }
@@ -237,6 +238,7 @@ struct TrackPoint: Codable {
         lastSavedLocation = nil
         lastSavedHeading = nil
         needsNewTrackSegment = true
+        stationarySince = nil
         save()
         resumeTracking()
     }
@@ -246,6 +248,7 @@ struct TrackPoint: Codable {
         let now = Date()
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = now }
         shift.lastEmptyMovementAt = nil
+        stationarySince = nil
         shift.rides.append(Ride(started: now))
         needsNewTrackSegment = true
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
@@ -259,6 +262,7 @@ struct TrackPoint: Codable {
         shift.rides[i].ended = now
         shift.waitingPeriods.append(BreakPeriod(started: now))
         shift.lastEmptyMovementAt = nil
+        stationarySince = nil
         needsNewTrackSegment = true
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
@@ -270,6 +274,7 @@ struct TrackPoint: Codable {
         let now = Date()
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = now }
         shift.lastEmptyMovementAt = nil
+        stationarySince = nil
         shift.breaks.append(BreakPeriod(started: now, kind: kind))
         needsNewTrackSegment = true
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
@@ -283,6 +288,7 @@ struct TrackPoint: Codable {
         shift.breaks[i].ended = now
         shift.waitingPeriods.append(BreakPeriod(started: now))
         shift.lastEmptyMovementAt = nil
+        stationarySince = nil
         needsNewTrackSegment = true
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
@@ -297,6 +303,7 @@ struct TrackPoint: Codable {
         if shift.breaks.last?.ended != now && !walking {
             recordBoundaryPoint(&shift)
         }
+        stationarySince = nil
         previous = nil
         shift.ended = now
         shift.revenue = revenue
@@ -374,18 +381,22 @@ struct TrackPoint: Codable {
                     }
                 }
             }
-            // Recognize an idle stop only outside a ride and outside a manual break.
-            // Require at least 60 seconds of stationary GPS observations; do not classify
-            // an isolated slow callback as a stop.
+            // Confirm a stop from continuous low-speed GPS samples. Once confirmed,
+            // credit the whole observed stationary interval, not only time after 60s.
             let rideActive = shift.rides.last.map { $0.ended == nil } ?? false
             let breakActive = shift.breaks.last.map { $0.ended == nil } ?? false
             let waitingActive = shift.waitingPeriods.last.map { $0.ended == nil } ?? false
-            if !rideActive && !breakActive && !waitingActive,
-               let lastMove = shift.lastEmptyMovementAt,
-               point.timestamp.timeIntervalSince(lastMove) >= 60,
-               point.speed >= 0 && point.speed < 0.8 {
-                shift.waitingPeriods.append(BreakPeriod(started: lastMove.addingTimeInterval(60)))
-                shift.lastEmptyMovementAt = nil
+            let validStationary = point.speed >= 0 && point.speed < 0.8 && !walking
+            let sampleGap = previous.map { point.timestamp.timeIntervalSince($0.timestamp) } ?? 0
+            if rideActive || breakActive || waitingActive || !validStationary || sampleGap > 120 {
+                stationarySince = nil
+            } else {
+                if stationarySince == nil { stationarySince = point.timestamp }
+                if let since = stationarySince, point.timestamp.timeIntervalSince(since) >= 60 {
+                    shift.waitingPeriods.append(BreakPeriod(started: since))
+                    shift.lastEmptyMovementAt = nil
+                    stationarySince = nil
+                }
             }
             previous = point
             // Walking during a meal or charging stop is not part of the vehicle track.
