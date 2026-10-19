@@ -505,6 +505,7 @@ struct Dashboard: View {
     @State private var showDiscard = false
     @State private var deletionTarget: UUID?
     @State private var gpxExport: URL?
+    @State private var selectedTab = 0
     private var riding: Bool { store.active?.rides.last.map { $0.ended == nil } ?? false }
     private var resting: Bool { store.active?.breaks.last.map { $0.ended == nil } ?? false }
     private var activeRideStart: Date? { guard let ride = store.active?.rides.last, ride.ended == nil else { return nil }; return ride.started }
@@ -519,24 +520,48 @@ struct Dashboard: View {
                     .padding(.bottom, 14)
                     .background(Cockpit.background)
                 ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    if let shift = store.active {
-                        mileageCard(shift)
-                        routeEntry(shift)
-                        metrics(shift)
-                        controls
-                    } else {
-                        welcome
+                    VStack(alignment: .leading, spacing: 12) {
+                        if selectedTab == 0 {
+                            if let shift = store.active {
+                                mileageCard(shift)
+                                shiftStatus(shift)
+                                liveMap(shift)
+                                metrics(shift)
+                                controls
+                            } else {
+                                welcome
+                            }
+                        } else if selectedTab == 1 {
+                            if let shift = store.active {
+                                Text("今日行驶轨迹").font(.title2.bold())
+                                liveMap(shift)
+                                routeEntry(shift)
+                            } else {
+                                Text("开始出车后显示实时轨迹").foregroundStyle(Cockpit.muted)
+                            }
+                        } else if selectedTab == 2 {
+                            Text("行程统计").font(.title2.bold())
+                            if let shift = store.active {
+                                mileageCard(shift)
+                                metrics(shift)
+                            } else if let last = store.history.first {
+                                mileageCard(last)
+                                metrics(last)
+                            } else {
+                                Text("暂无行程统计").foregroundStyle(Cockpit.muted)
+                            }
+                        } else {
+                            historySection
+                        }
+                        Text("本工具不接入网约车平台，订单趟数由乘客上下车按钮记录；GPS 里程为估算值。")
+                            .font(.caption).foregroundStyle(Cockpit.muted)
+                            .padding(.horizontal, 4)
                     }
-                    historySection
-                    Text("GPS 里程为估算值，步行、隧道及信号漂移可能影响准确性。")
-                        .font(.caption).foregroundStyle(Cockpit.muted)
-                        .padding(.horizontal, 4)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 12)
+                    .padding(.bottom, 26)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 18)
-                .padding(.bottom, 48)
-                }
+                bottomTabs
             }
         }
         }
@@ -578,25 +603,85 @@ struct Dashboard: View {
     }
     private var header: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("CAR TRIP  /  WORKSPACE")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .tracking(2.1).foregroundStyle(Cockpit.muted)
-                Text("车载行程助手")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("车载行程助手").font(.system(size: 25, weight: .bold))
+                Text("记录每一趟行程 · 让工作更清晰")
+                    .font(.system(size: 11)).foregroundStyle(Cockpit.muted)
             }
             Spacer()
-            HStack(spacing: 6) {
-                Circle().fill(store.active == nil ? Cockpit.muted : Cockpit.green)
-                    .frame(width: 7, height: 7)
-                Text(store.active == nil ? "待出车" : (riding ? "载客中" : (resting ? "休息中" : "运营中")))
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundStyle(store.active == nil ? Cockpit.muted : Cockpit.green)
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(Cockpit.panel, in: Capsule())
+            Text(Date().formatted(.dateTime.month().day()))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Cockpit.muted)
         }
+        .foregroundStyle(.white)
+    }
+    private var bottomTabs: some View {
+        HStack(spacing: 0) {
+            tab("首页", "house.fill", index: 0)
+            tab("轨迹", "map.fill", index: 1)
+            tab("统计", "chart.bar.fill", index: 2)
+            tab("记录", "doc.text.fill", index: 3)
+        }
+        .padding(.top, 10).padding(.bottom, 5)
+        .background(Cockpit.background)
+        .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.10)).frame(height: 1) }
+    }
+    private func tab(_ label: String, _ icon: String, index: Int) -> some View {
+        Button { selectedTab = index } label: {
+            VStack(spacing: 5) {
+                Image(systemName: icon).font(.system(size: 20))
+                Text(label).font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(selectedTab == index ? Color.cyan : Cockpit.muted)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
+    }
+    private func shiftStatus(_ shift: Shift) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            let now = min(timeline.date, shift.ended ?? timeline.date)
+            HStack(spacing: 12) {
+                Image(systemName: "car.fill").font(.system(size: 24))
+                    .foregroundStyle(Cockpit.green)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(riding ? "载客中" : (resting ? "休息中" : "已出车")).font(.headline)
+                    Text("开始时间：" + shift.started.formatted(date: .omitted, time: .shortened))
+                        .font(.caption).foregroundStyle(Cockpit.muted)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(clockString(max(0, Int(now.timeIntervalSince(shift.started)))))
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                    Text("本次出车时长").font(.caption2)
+                }
+                .foregroundStyle(Cockpit.green)
+            }
+            .padding(16)
+            .background(LinearGradient(colors: [Color(red: 0.02, green: 0.29, blue: 0.24), Cockpit.panel], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Cockpit.green.opacity(0.45)))
+        }
+    }
+    private func liveMap(_ shift: Shift) -> some View {
+        NavigationLink {
+            RouteDetail(shift: shift)
+        } label: {
+            ZStack(alignment: .bottomLeading) {
+                TripRouteMap(shift: shift)
+                    .frame(height: 205)
+                    .allowsHitTesting(false)
+                Label("今日行驶轨迹 · 点击查看", systemImage: "location.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .padding(.horizontal, 12).padding(.vertical, 9)
+                    .background(.black.opacity(0.78), in: Capsule())
+                    .padding(12)
+            }
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Cockpit.blue.opacity(0.5)))
+        }
+        .buttonStyle(.plain)
     }
     private func routeEntry(_ shift: Shift) -> some View {
         NavigationLink {
@@ -651,7 +736,7 @@ struct Dashboard: View {
         }
         .padding(22)
         .background(
-            LinearGradient(colors: [Cockpit.secondary, Cockpit.panel, Cockpit.background],
+            LinearGradient(colors: [Color(red: 0.02, green: 0.37, blue: 0.83), Color(red: 0.03, green: 0.20, blue: 0.48), Cockpit.background],
                            startPoint: .topLeading, endPoint: .bottomTrailing),
             in: RoundedRectangle(cornerRadius: 25)
         )
@@ -670,8 +755,8 @@ struct Dashboard: View {
                 metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
                 metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
                 metric("空驶里程", String(format: "%.2f", shift.emptyKilometers), "km", "car.side", .orange)
-                metric("总休息时间", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", Cockpit.green)
-                metric("载客时长", clockString(Int(totals.passenger)), "", "person.crop.circle", Cockpit.blue)
+                metric("总休息时间", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", .purple)
+                metric("载客时长", clockString(Int(totals.passenger)), "", "clock.fill", .pink)
                 metric("本次出车时长", clockString(max(0, Int(now.timeIntervalSince(shift.started)))), "", "clock", .cyan)
             }
         }
@@ -679,54 +764,64 @@ struct Dashboard: View {
     private func metric(_ label: String, _ value: String, _ unit: String, _ symbol: String, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 7) {
-                Image(systemName: symbol).foregroundStyle(tint)
-                Text(label).foregroundStyle(Cockpit.muted)
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(tint)
+                    .frame(width: 29, height: 29)
+                    .background(tint.opacity(0.20), in: RoundedRectangle(cornerRadius: 8))
+                Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                    .lineLimit(1).minimumScaleFactor(0.75)
             }
-            .font(.system(size: 12, weight: .medium))
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(value).font(.system(size: 23, weight: .bold, design: .rounded))
-                    .monospacedDigit().minimumScaleFactor(0.7).lineLimit(1)
-                Text(unit).font(.system(size: 12)).foregroundStyle(Cockpit.muted)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(value).font(.system(size: 21, weight: .bold, design: .rounded))
+                    .monospacedDigit().minimumScaleFactor(0.55).lineLimit(1)
+                Text(unit).font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
             }
             .foregroundStyle(.white)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(13)
-        .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .padding(12)
+        .background(LinearGradient(colors: [tint.opacity(0.26), Cockpit.panel], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 17))
+        .overlay(RoundedRectangle(cornerRadius: 17).stroke(tint.opacity(0.55), lineWidth: 1))
     }
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack {
-                Text("接单工作台").font(.system(size: 17, weight: .bold))
-                Spacer()
-                Text(riding ? "本单记录中" : (resting ? "休息计时中" : "等待接单"))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Cockpit.muted)
-            }
+        VStack(spacing: 10) {
             if riding {
                 action("乘客下车", symbol: "checkmark.flag.fill", color: .orange) { store.endRide() }
             } else if resting {
-                action("恢复接单", symbol: "play.fill", color: Cockpit.green) { store.endBreak() }
+                action("结束休息 · 恢复行程", symbol: "play.fill", color: Cockpit.green) { store.endBreak() }
             } else {
-                action("乘客上车", symbol: "person.crop.circle.badge.checkmark", color: Cockpit.blue) { store.startRide() }
-                HStack(spacing: 12) {
-                    secondaryAction("吃饭休息", symbol: "fork.knife") { store.startBreak(kind: .meal) }
-                    secondaryAction("充电等待", symbol: "bolt.car.fill") { store.startBreak(kind: .charging) }
+                HStack(spacing: 8) {
+                    action("乘客上车", symbol: "person.fill", color: Cockpit.blue) { store.startRide() }
+                    compactRest("吃饭休息", "cup.and.saucer.fill", .orange) { store.startBreak(kind: .meal) }
+                    compactRest("充电等待", "bolt.fill", .purple) { store.startBreak(kind: .charging) }
+                    compactRest("其他休息", "sofa.fill", Cockpit.green) { store.startBreak(kind: .other) }
                 }
-                HStack(spacing: 12) {
-                    secondaryAction("其他休息", symbol: "cup.and.saucer.fill") { store.startBreak(kind: .other) }
-                    secondaryAction("结束出车", symbol: "flag.checkered") { showFinish = true }
-                }
+            }
+            Button { showFinish = true } label: {
+                Label("结束出车", systemImage: "stop.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .foregroundStyle(.white)
+                    .background(Color.red.opacity(0.75), in: RoundedRectangle(cornerRadius: 13))
             }
             Button(role: .destructive) { showDiscard = true } label: {
-                Label("放弃本次测试记录", systemImage: "trash")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Cockpit.muted)
-                    .frame(maxWidth: .infinity).padding(.top, 5)
+                Text("放弃本次测试记录").font(.caption2).foregroundStyle(Cockpit.muted)
             }
         }
-        .padding(17)
-        .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 23))
+    }
+    private func compactRest(_ label: String, _ symbol: String, _ tint: Color, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
+            VStack(spacing: 6) {
+                Image(systemName: symbol).font(.system(size: 19))
+                Text(label).font(.system(size: 10, weight: .bold))
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity).frame(height: 58)
+            .foregroundStyle(.white)
+            .background(LinearGradient(colors: [tint.opacity(0.85), tint.opacity(0.45)], startPoint: .top, endPoint: .bottom), in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
     }
     private func action(_ label: String, symbol: String, color: Color, perform: @escaping () -> Void) -> some View {
         Button(action: perform) {
