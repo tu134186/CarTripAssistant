@@ -54,7 +54,8 @@ jobs:
                   db = sqlite3.connect(tmp.name)
                   fmt = db.execute("SELECT value FROM metadata WHERE name='format'").fetchone()[0]
                   count, low, high = db.execute("SELECT COUNT(*), MIN(zoom_level), MAX(zoom_level) FROM tiles").fetchone()
-                  assert fmt == "png" and count > 1000 and low <= 10 and high >= 15
+                  assert fmt == "png" and count > 20000 and low <= 10 and high >= 16, (
+                      f"Expected verified Shenzhen z16 map, got {count} tiles, z{low}-{high}")
                   print(f"Verified embedded Shenzhen offline map: {len(blob)} bytes, {count} tiles, zoom {low}-{high}")
           PY
       - uses: actions/upload-artifact@v4
