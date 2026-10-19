@@ -27,6 +27,10 @@ jobs:
           test -s map-download/Shenzhen-Roads.mbtiles
           cp map-download/Shenzhen-Roads.mbtiles CarTripAssistant/OfflineMap.mbtiles
           ls -lh CarTripAssistant/OfflineMap.mbtiles
+      - name: Generate app icon asset
+        run: |
+          python3 -m pip install --user pillow
+          python3 scripts/create_app_icon.py
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
