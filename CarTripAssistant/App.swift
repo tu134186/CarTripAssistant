@@ -243,7 +243,7 @@ struct TrackPoint: Codable {
     func startRide() {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
         recordBoundaryPoint(&shift)
-        let now = now
+        let now = Date()
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = now }
         shift.lastEmptyMovementAt = nil
         shift.rides.append(Ride(started: now))
@@ -255,9 +255,8 @@ struct TrackPoint: Codable {
     func endRide() {
         guard var shift = active, let i = shift.rides.indices.last, shift.rides[i].ended == nil else { return }
         recordBoundaryPoint(&shift)
-        let now = now
+        let now = Date()
         shift.rides[i].ended = now
-        let now = now
         shift.waitingPeriods.append(BreakPeriod(started: now))
         shift.lastEmptyMovementAt = nil
         needsNewTrackSegment = true
@@ -268,11 +267,10 @@ struct TrackPoint: Codable {
     func startBreak(kind: RestKind = .other) {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
         recordBoundaryPoint(&shift)
-        let now = now
+        let now = Date()
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = now }
         shift.lastEmptyMovementAt = nil
         shift.breaks.append(BreakPeriod(started: now, kind: kind))
-        needsNewTrackSegment = true
         needsNewTrackSegment = true
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
