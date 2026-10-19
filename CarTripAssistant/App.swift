@@ -522,8 +522,10 @@ struct Dashboard: View {
                 VStack(alignment: .leading, spacing: 20) {
                     if let shift = store.active {
                         mileageCard(shift)
-                        liveDurationCard(shift)
-                        routeEntry(shift)
+                        HStack(spacing: 10) {
+                            liveDurationCard(shift)
+                            routeEntry(shift)
+                        }
                         metrics(shift)
                         controls
                     } else {
@@ -603,17 +605,22 @@ struct Dashboard: View {
         NavigationLink {
             RouteDetail(shift: shift)
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "map.fill").foregroundStyle(Cockpit.blue)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("今日行驶轨迹").font(.system(size: 15, weight: .semibold))
-                    Text("\(shift.points.count) 个 GPS 记录点 · 地图查看").font(.caption).foregroundStyle(Cockpit.muted)
+            VStack(alignment: .leading, spacing: 10) {
+                Label("今日行驶轨迹", systemImage: "map.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                HStack(spacing: 4) {
+                    Text("\(shift.points.count) 个记录点")
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1).minimumScaleFactor(0.75)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12))
                 }
-                Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(Cockpit.muted)
             }
             .foregroundStyle(.white)
-            .padding(17)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .padding(14)
             .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 17))
         }
     }
@@ -655,45 +662,20 @@ struct Dashboard: View {
     }
     private func liveDurationCard(_ shift: Shift) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let shiftSeconds = max(0, Int(timeline.date.timeIntervalSince(shift.started)))
-            let rideSeconds = activeRideStart.map { max(0, Int(timeline.date.timeIntervalSince($0))) }
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("本次出车时长", systemImage: "clock")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Cockpit.muted)
-                    Text(clockString(shiftSeconds))
-                        .font(.system(size: 27, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white)
-                        .monospacedDigit()
-                }
-                Spacer(minLength: 4)
-                if let rideSeconds {
-                    VStack(alignment: .trailing, spacing: 6) {
-                        Text("当前载客计时")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Cockpit.green)
-                        Text(clockString(rideSeconds))
-                            .font(.system(size: 24, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Cockpit.green)
-                            .monospacedDigit()
-                    }
-                } else {
-                    VStack(alignment: .trailing, spacing: 6) {
-                        Text(resting ? "当前休息计时" : "当前等客计时")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Cockpit.green)
-                        let start = resting
-                            ? shift.breaks.last?.started
-                            : (shift.waitingPeriods.last?.ended == nil ? shift.waitingPeriods.last?.started : nil)
-                        Text(start.map { clockString(max(0, Int(timeline.date.timeIntervalSince($0)))) } ?? "00:00:00")
-                            .font(.system(size: 22, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Cockpit.green)
-                            .monospacedDigit()
-                    }
-                }
+            let seconds = max(0, Int(timeline.date.timeIntervalSince(shift.started)))
+            VStack(alignment: .leading, spacing: 10) {
+                Label("本次出车时长", systemImage: "clock")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Cockpit.muted)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Text(clockString(seconds))
+                    .font(.system(size: 22, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.65).lineLimit(1)
             }
-            .padding(17)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .padding(14)
             .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 17))
         }
     }
@@ -712,7 +694,6 @@ struct Dashboard: View {
                 metric("空驶里程", String(format: "%.2f", shift.emptyKilometers), "km", "car.side", .orange)
                 metric("总休息时间", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", Cockpit.green)
                 metric("载客时长", clockString(Int(totals.passenger)), "", "person.crop.circle", Cockpit.blue)
-                metric("空驶时长", clockString(Int(totals.empty)), "", "clock", .orange)
             }
         }
     }
