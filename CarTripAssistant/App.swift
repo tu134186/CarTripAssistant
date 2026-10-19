@@ -258,12 +258,16 @@ struct TrackPoint: Codable {
                     }
                 }
             }
-            // After 60 seconds without detected empty-car movement, start a new waiting period.
-            // Use the last motion timestamp as the origin so the UI can continue counting without GPS callbacks.
-            if shift.rides.last?.ended != nil, shift.breaks.last?.ended != nil || shift.breaks.isEmpty,
-               shift.waitingPeriods.last?.ended != nil || shift.waitingPeriods.isEmpty,
+            // Recognize an idle stop only outside a ride and outside a manual break.
+            // Require at least 60 seconds of stationary GPS observations; do not classify
+            // an isolated slow callback as a stop.
+            let rideActive = shift.rides.last.map { $0.ended == nil } ?? false
+            let breakActive = shift.breaks.last.map { $0.ended == nil } ?? false
+            let waitingActive = shift.waitingPeriods.last.map { $0.ended == nil } ?? false
+            if !rideActive && !breakActive && !waitingActive,
                let lastMove = shift.lastEmptyMovementAt,
-               point.timestamp.timeIntervalSince(lastMove) >= 60 {
+               point.timestamp.timeIntervalSince(lastMove) >= 60,
+               point.speed >= 0 && point.speed < 0.8 {
                 shift.waitingPeriods.append(BreakPeriod(started: lastMove.addingTimeInterval(60)))
                 shift.lastEmptyMovementAt = nil
             }
