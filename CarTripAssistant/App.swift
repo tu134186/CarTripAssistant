@@ -776,12 +776,22 @@ private enum OfflineMap {
 }
 private final class OfflineRasterTiles: MKTileOverlay {
     private let fileURL: URL
+    private let tileCache = NSCache<NSString, NSData>()
     init(url: URL) {
         fileURL = url
         super.init(urlTemplate: nil)
         tileSize = CGSize(width: 256, height: 256)
+        minimumZ = 10
+        maximumZ = 16
+        tileCache.countLimit = 384
+        tileCache.totalCostLimit = 24 * 1024 * 1024
     }
     override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, Error?) -> Void) {
+        let key = "\(path.z)/\(path.x)/\(path.y)" as NSString
+        if let cached = tileCache.object(forKey: key) {
+            result(cached as Data, nil)
+            return
+        }
         DispatchQueue.global(qos: .utility).async {
             var db: OpaquePointer?
             guard sqlite3_open_v2(self.fileURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
@@ -802,7 +812,9 @@ private final class OfflineRasterTiles: MKTileOverlay {
             sqlite3_bind_int(query, 2, Int32(path.x))
             sqlite3_bind_int(query, 3, Int32((1 << path.z) - 1 - path.y))
             if sqlite3_step(query) == SQLITE_ROW, let pointer = sqlite3_column_blob(query, 0) {
-                result(Data(bytes: pointer, count: Int(sqlite3_column_bytes(query, 0))), nil)
+                let data = Data(bytes: pointer, count: Int(sqlite3_column_bytes(query, 0)))
+                self.tileCache.setObject(data as NSData, forKey: key, cost: data.count)
+                result(data, nil)
             } else {
                 result(nil, NSError(domain: "OfflineMap", code: 4))
             }
