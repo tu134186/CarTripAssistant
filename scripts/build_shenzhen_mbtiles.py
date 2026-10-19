@@ -64,6 +64,10 @@ def render(input_path, output_path):
         font = ImageFont.truetype("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 12)
     except OSError:
         font = ImageFont.load_default()
+    blank = Image.new("RGB", (TILE, TILE), "#172433")
+    blank_buffer = io.BytesIO()
+    blank.save(blank_buffer, format="PNG")
+    blank_png = blank_buffer.getvalue()
     for z in range(MIN_ZOOM, MAX_ZOOM + 1):
         west, north = world(BBOX[0], BBOX[3], z)
         east, south = world(BBOX[2], BBOX[1], z)
@@ -84,10 +88,15 @@ def render(input_path, output_path):
         count = 0
         for x in range(minx, maxx + 1):
             for y in range(miny, maxy + 1):
+                entries = bucket.get((x,y), [])
+                if not entries:
+                    db.execute("INSERT INTO tiles VALUES (?,?,?,?)", (z,x,(2**z-1-y),blank_png))
+                    count += 1
+                    continue
                 im = Image.new("RGB", (TILE, TILE), "#172433")
                 draw = ImageDraw.Draw(im)
                 labeled = set()
-                for kind, label, points in sorted(bucket.get((x,y), []), key=lambda entry: -HIGHWAYS[entry[0]][0]):
+                for kind, label, points in sorted(entries, key=lambda entry: -HIGHWAYS[entry[0]][0]):
                     width, color = HIGHWAYS[kind]
                     coords = [(int(px - x*TILE), int(py - y*TILE)) for px,py in points]
                     draw.line(coords, fill=color, width=max(1, width * (z - 9) // 5), joint="curve")
@@ -100,7 +109,7 @@ def render(input_path, output_path):
                                           fill="#eef3f7", stroke_width=2, stroke_fill="#172433")
                                 labeled.add(label)
                 out = io.BytesIO()
-                im.save(out, format="PNG", optimize=True)
+                im.save(out, format="PNG")
                 db.execute("INSERT INTO tiles VALUES (?,?,?,?)", (z,x,(2**z-1-y),out.getvalue()))
                 count += 1
         db.commit()
