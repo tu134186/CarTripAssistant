@@ -931,7 +931,7 @@ struct Dashboard: View {
             if riding {
                 action("乘客下车", symbol: "checkmark.flag.fill", color: .orange) { store.endRide() }
             } else if resting {
-                action("结束休息 · 恢复行程", symbol: "play.fill", color: Cockpit.green) { store.endBreak() }
+                action("结束休息", symbol: "play.fill", color: Cockpit.green) { store.endBreak() }
             } else {
                 HStack(spacing: 8) {
                     compactRest("乘客上车", "person.fill", Cockpit.blue) { store.startRide() }
