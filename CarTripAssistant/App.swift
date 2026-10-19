@@ -362,7 +362,7 @@ struct TrackPoint: Codable {
                 let manualBreakActive = shift.breaks.last.map { $0.ended == nil } ?? false
                 // A long GPS outage does not prove the route between samples.
                 // Skip the gap instead of inventing straight-line vehicle mileage.
-                if seconds <= 120 && meters > max(8, last.horizontalAccuracy + point.horizontalAccuracy) && speed >= 1.5 && speed < 50 && !walking && !manualBreakActive {
+                if seconds <= 120 && meters > max(8, min(18, (last.horizontalAccuracy + point.horizontalAccuracy) * 0.5)) && speed >= 1.5 && speed < 50 && !walking && !manualBreakActive {
                     let km = meters / 1000
                     shift.kilometers += km
                     if let i = shift.rides.indices.last, shift.rides[i].ended == nil {
