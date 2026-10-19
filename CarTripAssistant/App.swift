@@ -25,11 +25,16 @@ struct Shift: Codable, Identifiable {
     var restKilometers: Double = 0
     var rides: [Ride] = []
     var breaks: [BreakPeriod] = []
+    var waitingPeriods: [BreakPeriod] = []
+    var lastEmptyMovementAt: Date?
     var revenue: String = ""
     var notes: String = ""
     var points: [TrackPoint] = []
     var passengerKM: Double { rides.reduce(0) { $0 + $1.kilometers } }
     var completedOrders: Int { rides.filter { $0.ended != nil }.count }
+    func waitingSeconds(at now: Date) -> TimeInterval {
+        waitingPeriods.reduce(0) { $0 + max(0, ($1.ended ?? now).timeIntervalSince($1.started)) }
+    }
     var restSeconds: TimeInterval { breaks.reduce(0) { $0 + ($1.ended ?? Date()).timeIntervalSince($1.started) } }
 }
 struct TrackPoint: Codable {
@@ -104,6 +109,7 @@ struct TrackPoint: Codable {
     func startRide() {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
         recordBoundaryPoint(&shift)
+        if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = Date() }
         shift.rides.append(Ride(started: Date()))
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
@@ -113,6 +119,7 @@ struct TrackPoint: Codable {
         guard var shift = active, let i = shift.rides.indices.last, shift.rides[i].ended == nil else { return }
         recordBoundaryPoint(&shift)
         shift.rides[i].ended = Date()
+        shift.waitingPeriods.append(BreakPeriod(started: Date()))
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
@@ -120,6 +127,7 @@ struct TrackPoint: Codable {
     func startBreak() {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
         recordBoundaryPoint(&shift)
+        if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = Date() }
         shift.breaks.append(BreakPeriod(started: Date()))
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
@@ -129,6 +137,7 @@ struct TrackPoint: Codable {
         guard var shift = active, let i = shift.breaks.indices.last, shift.breaks[i].ended == nil else { return }
         recordBoundaryPoint(&shift)
         shift.breaks[i].ended = Date()
+        shift.waitingPeriods.append(BreakPeriod(started: Date()))
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
         active = shift
         save()
@@ -138,6 +147,7 @@ struct TrackPoint: Codable {
         let now = Date()
         if let i = shift.rides.indices.last, shift.rides[i].ended == nil { shift.rides[i].ended = now }
         if let i = shift.breaks.indices.last, shift.breaks[i].ended == nil { shift.breaks[i].ended = now }
+        if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = now }
         recordBoundaryPoint(&shift)
         previous = nil
         shift.ended = now
@@ -201,8 +211,23 @@ struct TrackPoint: Codable {
                         shift.rides[i].kilometers += km
                     } else {
                         shift.emptyKilometers += km
+                        if meters >= 8 && speed >= 1.5 {
+                            if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil {
+                                shift.waitingPeriods[i].ended = point.timestamp
+                            }
+                            shift.lastEmptyMovementAt = point.timestamp
+                        }
                     }
                 }
+            }
+            // After 60 seconds without detected empty-car movement, start a new waiting period.
+            // Use the last motion timestamp as the origin so the UI can continue counting without GPS callbacks.
+            if shift.rides.last?.ended != nil, shift.breaks.last?.ended != nil || shift.breaks.isEmpty,
+               shift.waitingPeriods.last?.ended != nil || shift.waitingPeriods.isEmpty,
+               let lastMove = shift.lastEmptyMovementAt,
+               point.timestamp.timeIntervalSince(lastMove) >= 60 {
+                shift.waitingPeriods.append(BreakPeriod(started: lastMove.addingTimeInterval(60)))
+                shift.lastEmptyMovementAt = nil
             }
             previous = point
             if shouldSaveTrackPoint(point) {
@@ -251,6 +276,7 @@ struct TrackPoint: Codable {
         结束时间：\((shift.ended ?? Date()).formatted())
         出车时长：\(Int(duration / 60)) 分钟
         休息时长：\(Int(shift.restSeconds / 60)) 分钟
+        等客时长：\(Int(shift.waitingSeconds(at: shift.ended ?? Date()) / 60)) 分钟
         工作时长：\(Int(max(0, duration - shift.restSeconds) / 60)) 分钟
         全天总里程：\(String(format: "%.2f", shift.kilometers)) 公里
         载客里程：\(String(format: "%.2f", shift.passengerKM)) 公里
@@ -490,7 +516,8 @@ struct Dashboard: View {
                 total + max(0, (rest.ended ?? now).timeIntervalSince(rest.started))
             }
             let totalSeconds = max(0, now.timeIntervalSince(shift.started))
-            let emptySeconds = max(0, totalSeconds - passengerSeconds - restSeconds)
+            let waitingSeconds = shift.waitingSeconds(at: now)
+            let emptySeconds = max(0, totalSeconds - passengerSeconds - restSeconds - waitingSeconds)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
                 metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
@@ -498,6 +525,7 @@ struct Dashboard: View {
                 metric("休息期间移动", String(format: "%.2f", shift.restKilometers), "km", "cup.and.saucer", .cyan)
                 metric("载客总时长", clockString(Int(passengerSeconds)), "", "person.crop.circle", Cockpit.blue)
                 metric("空驶总时长", clockString(Int(emptySeconds)), "", "car.side", .orange)
+                metric("等客总时长", clockString(Int(waitingSeconds)), "", "clock.arrow.circlepath", Cockpit.green)
                 metric("休息总时长", clockString(Int(restSeconds)), "", "cup.and.saucer.fill", .cyan)
             }
         }
