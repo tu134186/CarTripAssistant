@@ -88,11 +88,11 @@ jobs:
           with zipfile.ZipFile(ipa) as z:
               names=z.namelist()
               info=plistlib.loads(z.read('Payload/CarTripAssistant.app/Info.plist'))
-              assert info.get('CFBundleShortVersionString')=='2.2.4', info.get('CFBundleShortVersionString')
+              assert info.get('CFBundleShortVersionString')=='2.2.5', info.get('CFBundleShortVersionString')
               assert 'Payload/CarTripAssistant.app/Assets.car' in names, 'Compiled asset catalog missing'
               icon=info.get('CFBundleIcons',{}).get('CFBundlePrimaryIcon',{})
               assert icon.get('CFBundleIconName')=='AppIcon' or icon.get('CFBundleIconFiles'), 'No primary icon metadata'
-              print('Verified V2.2.4 and compiled AppIcon metadata')
+              print('Verified V2.2.5 and compiled AppIcon metadata')
           PY
       - name: Verify map excluded from IPA
         run: |
