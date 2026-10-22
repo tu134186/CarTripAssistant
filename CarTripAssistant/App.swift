@@ -402,7 +402,9 @@ struct TrackPoint: Codable {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard var shift = active else { return }
         let countBeforeUpdate = shift.points.count
-        for point in locations {
+        // Core Location can deliver a batch in non-chronological order after background wake-up.
+        // Sort the batch before applying monotonic timestamp checks to avoid dropping valid fixes.
+        for point in locations.sorted(by: { $0.timestamp < $1.timestamp }) {
             gpsReceivedCount += 1
             // Core Location may deliver a cached fix from before this shift began.
             // Never allow that older coordinate to become the new trip's start pin.
@@ -518,7 +520,7 @@ struct TrackPoint: Codable {
         gpsStatus = shift.points.isEmpty ? "等待有效轨迹点（精度需≤80米）" : "GPS 记录中 · \(shift.points.count)点"
         // Persist the first accepted fix immediately. Otherwise terminating
         // the app before the 15-second flush can lose the new shift's start.
-        if (countBeforeUpdate == 0 && !shift.points.isEmpty) || Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
+        if shift.points.count > countBeforeUpdate || Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
     }
     func restoreArchive(_ url: URL) throws {
         guard active == nil else {
