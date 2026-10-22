@@ -166,6 +166,9 @@ struct TrackPoint: Codable {
     @Published var gpsGapCount = 0
     @Published var rejectedGPSCount = 0
     @Published var gpsErrorCount = 0
+    @Published var parkingThresholdSeconds: Double = max(30, UserDefaults.standard.double(forKey: "parkingThresholdSeconds") == 0 ? 60 : UserDefaults.standard.double(forKey: "parkingThresholdSeconds")) {
+        didSet { UserDefaults.standard.set(parkingThresholdSeconds, forKey: "parkingThresholdSeconds") }
+    }
     private let location = CLLocationManager()
     private let motion = CMMotionActivityManager()
     private var previous: CLLocation?
@@ -409,7 +412,7 @@ struct TrackPoint: Codable {
                 stationarySince = nil
             } else {
                 if stationarySince == nil { stationarySince = point.timestamp }
-                if let since = stationarySince, point.timestamp.timeIntervalSince(since) >= 60 {
+                if let since = stationarySince, point.timestamp.timeIntervalSince(since) >= parkingThresholdSeconds {
                     shift.waitingPeriods.append(BreakPeriod(started: since))
                     shift.lastEmptyMovementAt = nil
                     stationarySince = nil
@@ -818,6 +821,14 @@ struct Dashboard: View {
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             VStack(alignment: .leading, spacing: 12) {
                 Label("停车与等客识别", systemImage: "car.side.fill")
+                Picker("停车确认时间", selection: $store.parkingThresholdSeconds) {
+                    Text("30 秒").tag(30.0)
+                    Text("60 秒").tag(60.0)
+                    Text("120 秒").tag(120.0)
+                    Text("180 秒").tag(180.0)
+                }.pickerStyle(.menu)
+                Text("连续低速且不处于载客、休息状态时，达到设定时间后开始计算等客时间。")
+                    .font(.caption).foregroundStyle(Cockpit.muted)
                     .font(.headline).foregroundStyle(Cockpit.green)
                 toolRow("运营状态", store.active == nil ? "未出车" : (riding ? "载客中" : (resting ? "手动休息中" : "出车中")))
                 toolRow("运动识别", store.motionStatus)
