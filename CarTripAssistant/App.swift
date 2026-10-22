@@ -449,7 +449,9 @@ struct TrackPoint: Codable {
             // Preserve valid GPS fixes even when walking: motion classification is not
             // reliable enough to hide the driver's location on the map. Walking and
             // manual breaks are still excluded from vehicle mileage above.
-            if !breakActive && (needsNewTrackSegment || shouldSaveTrackPoint(point)) {
+            // Even on a manual break, keep an accurate map trace; the mileage
+            // calculation above still excludes break and walking movement.
+            if needsNewTrackSegment || shouldSaveTrackPoint(point) {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                               date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed,
                                               segmentStart: needsNewTrackSegment))
