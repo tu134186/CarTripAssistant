@@ -1708,6 +1708,10 @@ private struct RouteDetail: View {
                             if replayElapsed >= replayDuration { replayElapsed = 0 }
                             replayRunning.toggle()
                         }.buttonStyle(.borderedProminent)
+                        Button("后退10秒") { replayRunning = false; replayElapsed = max(0, replayElapsed - 10) }
+                            .buttonStyle(.bordered)
+                        Button("前进10秒") { replayRunning = false; replayElapsed = min(replayDuration, replayElapsed + 10) }
+                            .buttonStyle(.bordered)
                         Button("重置") { replayRunning = false; replayElapsed = 0 }
                             .buttonStyle(.bordered)
                         Spacer()
@@ -1715,6 +1719,7 @@ private struct RouteDetail: View {
                             Text("1×").tag(1)
                             Text("2×").tag(2)
                             Text("5×").tag(5)
+                            Text("10×").tag(10)
                         }.pickerStyle(.menu)
                     }
                     Slider(value: Binding(get: { replayElapsed }, set: { replayElapsed = $0; replayRunning = false }),
