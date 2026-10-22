@@ -1533,12 +1533,15 @@ private struct RouteDetail: View {
             .padding(16)
         }
         .background(Cockpit.background)
-        .fileImporter(isPresented: $importMap, allowedContentTypes: [UTType(filenameExtension: "mbtiles") ?? .data]) { outcome in
+        .fileImporter(isPresented: $importMap, allowedContentTypes: [.data, .item]) { outcome in
             switch outcome {
             case .success(let url):
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                 do {
+                    guard url.pathExtension.lowercased() == "mbtiles" else {
+                        throw NSError(domain: "OfflineMap", code: 3, userInfo: [NSLocalizedDescriptionKey: "请选择解压后的 .mbtiles 地图文件，不要选择 ZIP 压缩包"])
+                    }
                     try OfflineMap.install(url)
                     mapRevision += 1
                 } catch { mapError = error.localizedDescription }
