@@ -405,6 +405,12 @@ struct TrackPoint: Codable {
             }
             gpsAccuracy = point.horizontalAccuracy
             gpsSpeed = point.speed >= 0 ? point.speed * 3.6 : nil
+            // Never publish a stale/out-of-order fix as the latest recorder
+            // location: otherwise the diagnostic endpoint can move backwards.
+            if let last = previous, point.timestamp <= last.timestamp {
+                rejectedGPSCount += 1
+                continue
+            }
             gpsLastUpdate = point.timestamp
             latestGPSLocation = point
             if let last = previous {
