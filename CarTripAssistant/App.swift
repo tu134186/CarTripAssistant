@@ -388,7 +388,11 @@ struct TrackPoint: Codable {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard var shift = active else { return }
         for point in locations {
-            guard point.horizontalAccuracy > 0, point.horizontalAccuracy <= 35, abs(point.timestamp.timeIntervalSinceNow) < 30 else {
+            // Core Location may deliver a cached fix from before this shift began.
+            // Never allow that older coordinate to become the new trip's start pin.
+            guard point.timestamp >= shift.started.addingTimeInterval(-2),
+                  point.horizontalAccuracy > 0, point.horizontalAccuracy <= 35,
+                  abs(point.timestamp.timeIntervalSinceNow) < 30 else {
                 rejectedGPSCount += 1
                 continue
             }
