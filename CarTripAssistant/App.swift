@@ -1601,6 +1601,19 @@ private enum OfflineMap {
         let temp = folder.appendingPathComponent("incoming.mbtiles")
         if fm.fileExists(atPath: temp.path) { try fm.removeItem(at: temp) }
         try fm.copyItem(at: source, to: temp)
+        let bytes = (try? fm.attributesOfItem(atPath: temp.path)[.size] as? NSNumber)?.int64Value ?? 0
+        guard bytes >= 4096 else {
+            try? fm.removeItem(at: temp)
+            throw NSError(domain: "OfflineMap", code: 5, userInfo: [NSLocalizedDescriptionKey: "文件过小（\(bytes) 字节），可能是下载失败保存的网页，不是地图数据库"])
+        }
+        // SQLite files must start with this exact 16-byte header.
+        let header = try FileHandle(forReadingFrom: temp)
+        let prefix = header.readData(ofLength: 16)
+        try header.close()
+        guard prefix == Data("SQLite format 3\0".utf8) else {
+            try? fm.removeItem(at: temp)
+            throw NSError(domain: "OfflineMap", code: 6, userInfo: [NSLocalizedDescriptionKey: "不是 SQLite MBTiles 数据库。请确认下载的是 .mbtiles 文件，而不是 ZIP 或网页"])
+        }
         var db: OpaquePointer?
         let opened = sqlite3_open_v2(temp.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK
         var statement: OpaquePointer?
