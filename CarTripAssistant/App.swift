@@ -176,6 +176,7 @@ struct TrackPoint: Codable {
     private let motion = CMMotionActivityManager()
     private var previous: CLLocation?
     private var walking = false
+    private var distanceAnchor: CLLocation?
     private var lastSavedLocation: CLLocation?
     private var lastSavedHeading: CLLocationDirection?
     private var needsNewTrackSegment = true
@@ -247,6 +248,7 @@ struct TrackPoint: Codable {
         newShift.waitingPeriods.append(BreakPeriod(started: newShift.started))
         active = newShift
         previous = nil
+        distanceAnchor = nil
         lastSavedLocation = nil
         lastSavedHeading = nil
         needsNewTrackSegment = true
@@ -267,6 +269,7 @@ struct TrackPoint: Codable {
         shift.rides.append(Ride(started: now))
         needsNewTrackSegment = true
         previous = nil // Do not attribute a GPS segment crossing this state boundary to either category.
+        distanceAnchor = nil
         active = shift
         save()
     }
@@ -350,8 +353,8 @@ struct TrackPoint: Codable {
         let elapsed = point.timestamp.timeIntervalSince(last.timestamp)
         // Record road bends and empty-driving routes without waiting 100 m.
         // GPS jitter alone must not generate dense stationary points.
-        if elapsed >= 30 { return true }
-        if meters >= max(25, min(45, point.horizontalAccuracy * 2)) { return true }
+        if elapsed >= 15 { return true }
+        if meters >= max(12, min(25, point.horizontalAccuracy)) { return true }
         // 转弯时增加轨迹密度，避免道路拐角被连成直线。
         if meters >= 20, point.course >= 0, let old = lastSavedHeading {
             let diff = abs(point.course - old)
@@ -411,10 +414,23 @@ struct TrackPoint: Codable {
                 // Manual rest can include walking away from the parked car. Never add
                 // that movement to vehicle mileage, even if motion detection lags.
                 let manualBreakActive = shift.breaks.last.map { $0.ended == nil } ?? false
-                // A long GPS outage does not prove the route between samples.
-                // Skip the gap instead of inventing straight-line vehicle mileage.
-                if seconds <= 120 && meters > max(8, min(18, (last.horizontalAccuracy + point.horizontalAccuracy) * 0.5)) && speed >= 0.8 && speed < 50 && !manualBreakActive {
-                    let km = meters / 1000
+                // Preserve sub-threshold motion: compare with the last credited
+                // fix rather than discarding each 5 m Core Location callback.
+                // Reset on breaks, GPS gaps and impossible jumps.
+                if manualBreakActive || seconds > 120 || speed >= 50 {
+                    distanceAnchor = point
+                }
+                if distanceAnchor == nil { distanceAnchor = last }
+                let anchor = distanceAnchor ?? last
+                let anchorSeconds = point.timestamp.timeIntervalSince(anchor.timestamp)
+                let anchorMeters = point.distance(from: anchor)
+                let anchorSpeed = anchorSeconds > 0 ? anchorMeters / anchorSeconds : 0
+                let threshold = max(8, min(18, (anchor.horizontalAccuracy + point.horizontalAccuracy) * 0.5))
+                if !manualBreakActive && seconds <= 120 && anchorSeconds > 0 &&
+                   anchorSeconds <= 120 && anchorMeters >= threshold &&
+                   anchorSpeed >= 0.8 && anchorSpeed < 50 && speed < 50 {
+                    distanceAnchor = point
+                    let km = anchorMeters / 1000
                     shift.kilometers += km
                     if let i = shift.rides.indices.last, shift.rides[i].ended == nil {
                         shift.rides[i].kilometers += km
