@@ -1495,6 +1495,20 @@ private struct RouteDetail: View {
         if let live = store.active, live.id == initialShift.id { return live }
         return store.history.first(where: { $0.id == initialShift.id }) ?? initialShift
     }
+    // Compare Apple's live location with the latest stored route fix.
+    // This makes stale background GPS and coordinate drift distinguishable.
+    private var routeGPSCheck: String {
+        guard let saved = shift.points.last else { return "轨迹诊断：尚无保存的 GPS 点" }
+        let age = max(0, Int(Date().timeIntervalSince(saved.date)))
+        let savedLocation = CLLocation(latitude: saved.lat, longitude: saved.lon)
+        guard let live = store.location.location,
+              live.horizontalAccuracy > 0,
+              abs(live.timestamp.timeIntervalSinceNow) <= 30 else {
+            return "轨迹诊断：最后轨迹点距今\\(age)秒 · 当前无新鲜实时定位"
+        }
+        let separation = Int(live.distance(from: savedLocation).rounded())
+        return "轨迹诊断：实时定位与轨迹终点相差\\(separation)米 · 终点距今\\(age)秒 · 实时精度±\\(Int(live.horizontalAccuracy))米"
+    }
     @State private var importMap = false
     @State private var mapRevision = 0
     @StateObject private var mapDownload = ShenzhenMapDownload()
@@ -1567,6 +1581,12 @@ private struct RouteDetail: View {
                         .font(.caption.bold())
                 }.padding(.horizontal, 15)
             }
+            Text(routeGPSCheck)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 15)
+                .padding(.top, 6)
             if replayCount > 1 {
                 VStack(spacing: 7) {
                     HStack {
