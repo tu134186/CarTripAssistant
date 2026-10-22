@@ -15,6 +15,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Merge V2.2.4 GPS fixes with V2.2.5 map manager
         shell: bash
         run: |
@@ -28,7 +30,7 @@ jobs:
             ROOT="$(dirname "$PROJECT")"
           fi
           test -f "$ROOT/CarTripAssistant/App.swift"
-          git show 4dd3ec18209527006b16190a19fa398ecf75b923:CarTripAssistant/App.swift > /tmp/cartrip-base.swift
+          git show 4dd3ec18209527006b16190a19fa398ecf75b923:CarTripAssistant/App.swift > /tmp/cartrip-base.swift || cp "$ROOT/CarTripAssistant/App.swift" /tmp/cartrip-base.swift
           cp CarTripAssistant/App.swift /tmp/cartrip-v225.swift
           git merge-file -p /tmp/cartrip-v225.swift /tmp/cartrip-base.swift "$ROOT/CarTripAssistant/App.swift" > /tmp/cartrip-merged.swift || { echo 'V2.2.4/V2.2.5 source merge conflict'; exit 1; }
           cp -R "$ROOT/CarTripAssistant/." CarTripAssistant/
@@ -37,7 +39,7 @@ jobs:
           import plistlib
           p='CarTripAssistant/Info.plist'
           with open(p,'rb') as f: info=plistlib.load(f)
-          assert info.get('CFBundleShortVersionString')=='2.2.5', 'Uploaded GPS base must be 2.2.4'
+          assert info.get('CFBundleShortVersionString')=='2.2.4', 'Uploaded GPS base must be 2.2.4'
           info['CFBundleShortVersionString']='2.2.5'
           info['CFBundleVersion']='2205'
           with open(p,'wb') as f: plistlib.dump(info,f)
