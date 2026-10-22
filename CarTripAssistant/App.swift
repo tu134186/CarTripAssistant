@@ -1319,6 +1319,7 @@ private final class RouteOverlay: MKPolyline {
 }
 private struct TripRouteMap: UIViewRepresentable {
     let shift: Shift
+    var playbackCoordinate: CLLocationCoordinate2D? = nil
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
         map.delegate = context.coordinator
@@ -1338,6 +1339,18 @@ private struct TripRouteMap: UIViewRepresentable {
         }.joined(separator: "|")
         let latestPointTime = shift.points.last?.date.timeIntervalSince1970 ?? 0
         let coordinator = context.coordinator
+        if let playbackCoordinate {
+            if coordinator.playbackPin == nil {
+                let pin = MKPointAnnotation()
+                pin.title = "回放车辆"
+                coordinator.playbackPin = pin
+                map.addAnnotation(pin)
+            }
+            coordinator.playbackPin?.coordinate = playbackCoordinate
+        } else if let pin = coordinator.playbackPin {
+            map.removeAnnotation(pin)
+            coordinator.playbackPin = nil
+        }
         guard coordinator.lastCount != shift.points.count ||
               coordinator.shiftID != shift.id ||
               coordinator.lastRideSignature != rideSignature ||
@@ -1347,7 +1360,7 @@ private struct TripRouteMap: UIViewRepresentable {
         coordinator.lastRideSignature = rideSignature
         coordinator.lastPointTime = latestPointTime
         map.removeOverlays(map.overlays)
-        map.removeAnnotations(map.annotations)
+        map.removeAnnotations(map.annotations.filter { $0 !== coordinator.playbackPin })
         let points = shift.points.filter {
             (-90...90).contains($0.lat) && (-180...180).contains($0.lon)
         }
@@ -1381,7 +1394,7 @@ private struct TripRouteMap: UIViewRepresentable {
             } ?? false
             // A discontinuity is not a driven road. Never draw a straight
             // connector across a GPS gap, reversed timestamp or impossible jump.
-            if p.segmentStart || elapsed > 120 || (previousDate != nil && elapsed <= 0) || jumped {
+            if p.segmentStart || elapsed > 8 || (previousDate != nil && elapsed <= 0) || jumped {
                 flush()
                 segmentPassenger = passenger
             } else if passenger != segmentPassenger {
@@ -1432,6 +1445,7 @@ private struct TripRouteMap: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
     final class Coordinator: NSObject, MKMapViewDelegate {
         var lastCount = -1
+        var playbackPin: MKPointAnnotation?
         var hasFramedRoute = false
         var shiftID: UUID?
         var lastRideSignature = ""
@@ -1547,14 +1561,17 @@ private struct RouteDetail: View {
         for i in 1..<points.count {
             let a = points[i - 1], b = points[i]
             let seconds = b.date.timeIntervalSince(a.date)
-            if b.segmentStart || seconds <= 0 || seconds > 120 { continue }
+            if b.segmentStart || seconds <= 0 || seconds > 8 { continue }
             let start = CLLocation(latitude: a.lat, longitude: a.lon)
             let end = CLLocation(latitude: b.lat, longitude: b.lon)
             let distance = end.distance(from: start)
             if distance / seconds >= 50 { continue }
             meters += distance
         }
-        return String(format: "GPS轨迹折线约%.2f公里 · 已计入里程%.2f公里 · 轨迹点%d个（折线包含定位漂移，仅用于排查）", meters / 1000, shift.kilometers, points.count)
+        let gaps = (1..<points.count).filter {
+            points[$0].date.timeIntervalSince(points[$0 - 1].date) > 8
+        }.count
+        return String(format: "连续GPS折线约%.2f公里 · 已计入%.2f公里 · %d点 · 定位间隔>8秒共%d次（折线含漂移，不是实际里程）", meters / 1000, shift.kilometers, points.count, gaps)
     }
     @State private var importMap = false
     @State private var mapRevision = 0
@@ -1574,7 +1591,33 @@ private struct RouteDetail: View {
     private var replayIndex: Int {
         guard let first = shift.points.first else { return 0 }
         let target = first.date.addingTimeInterval(replayElapsed)
-        return max(0, (shift.points.lastIndex(where: { $0.date <= target }) ?? 0))
+        // Binary search: replay remains responsive for long 1 Hz trips.
+        var low = 0
+        var high = shift.points.count
+        while low < high {
+            let mid = low + (high - low) / 2
+            if shift.points[mid].date <= target { low = mid + 1 }
+            else { high = mid }
+        }
+        return max(0, low - 1)
+    }
+    private var playbackCoordinate: CLLocationCoordinate2D? {
+        guard replayElapsed > 0 || replayRunning, !shift.points.isEmpty else { return nil }
+        let index = replayIndex
+        let a = shift.points[index]
+        let from = CLLocationCoordinate2D(latitude: a.lat, longitude: a.lon)
+        guard index + 1 < shift.points.count else { return from }
+        let b = shift.points[index + 1]
+        let interval = b.date.timeIntervalSince(a.date)
+        // Interpolation is display-only. Never invent or persist GPS fixes.
+        guard !b.segmentStart, interval > 0, interval <= 8 else { return from }
+        let start = CLLocation(latitude: a.lat, longitude: a.lon)
+        let end = CLLocation(latitude: b.lat, longitude: b.lon)
+        guard end.distance(from: start) / interval < 50 else { return from }
+        let target = shift.points[0].date.addingTimeInterval(replayElapsed)
+        let fraction = max(0, min(1, target.timeIntervalSince(a.date) / interval))
+        return CLLocationCoordinate2D(latitude: a.lat + (b.lat - a.lat) * fraction,
+                                      longitude: a.lon + (b.lon - a.lon) * fraction)
     }
     private var replayShift: Shift {
         var partial = shift
@@ -1583,7 +1626,8 @@ private struct RouteDetail: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            TripRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift)
+            TripRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
+                         playbackCoordinate: playbackCoordinate)
                 .id(mapRevision)
                 .onReceive(replayTimer) { _ in
                     guard replayRunning else { return }
