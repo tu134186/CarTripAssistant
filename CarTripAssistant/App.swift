@@ -202,6 +202,7 @@ struct TrackPoint: Codable {
             gpsStatus = "历史记录读取失败，请先备份数据"
         }
         location.delegate = self
+        location.activityType = .automotiveNavigation
         location.desiredAccuracy = kCLLocationAccuracyBest
         location.distanceFilter = kCLDistanceFilterNone
         location.pausesLocationUpdatesAutomatically = false
