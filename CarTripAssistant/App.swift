@@ -1383,7 +1383,12 @@ private struct TripRouteMap: UIViewRepresentable {
             if !coordinator.hasFramedRoute { map.setRegion(region, animated: false); coordinator.hasFramedRoute = true }
         } else {
             map.addAnnotations([first, last])
-            if !coordinator.hasFramedRoute { map.showAnnotations([first, last], animated: false); coordinator.hasFramedRoute = true }
+            // Do not mark framing complete here: two endpoints alone can hide
+            // the bends of a multi-point trip. Fit the full track below.
+            if points.count == 2 && !coordinator.hasFramedRoute {
+                map.showAnnotations([first, last], animated: false)
+                coordinator.hasFramedRoute = true
+            }
         }
         if points.count > 2 {
             let coords = points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
