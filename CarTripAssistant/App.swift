@@ -1322,15 +1322,11 @@ private struct TripRouteMap: UIViewRepresentable {
         let points = shift.points.filter {
             (-90...90).contains($0.lat) && (-180...180).contains($0.lon)
         }
-        // An empty track should still display the bundled Shenzhen offline map.
-        let entirelyWithinShenzhen = points.allSatisfy {
-            (113.70...114.65).contains($0.lon) && (22.35...22.90).contains($0.lat)
-        }
-        if entirelyWithinShenzhen, let url = OfflineMap.file {
-            let tiles = OfflineRasterTiles(url: url)
-            tiles.canReplaceMapContent = false
-            map.addOverlay(tiles, level: .aboveRoads)
-        }
+        // Use Apple's native map as the reference coordinate layer for GPS routes.
+        // Third-party MBTiles can use a different coordinate datum (e.g. GCJ-02)
+        // and visually shift roads away from WGS-84 Core Location points.
+        // Keep the installed offline database untouched; do not overlay it here
+        // until its coordinate system has been independently verified.
         guard !points.isEmpty else { return }
         // 分段绘制：载客为绿色，其余为蓝色；定位时间间隔过长则断开，不画跨城直线。
         var segment: [CLLocationCoordinate2D] = []
@@ -1367,23 +1363,25 @@ private struct TripRouteMap: UIViewRepresentable {
             map.addAnnotation(first)
             let region = MKCoordinateRegion(center: first.coordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012))
-            map.setRegion(region, animated: false)
+            if !coordinator.hasFramedRoute { map.setRegion(region, animated: false); coordinator.hasFramedRoute = true }
         } else {
             map.addAnnotations([first, last])
-            map.showAnnotations([first, last], animated: false)
+            if !coordinator.hasFramedRoute { map.showAnnotations([first, last], animated: false); coordinator.hasFramedRoute = true }
         }
         if points.count > 2 {
             let coords = points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
             let poly = MKPolyline(coordinates: coords, count: coords.count)
             let rect = poly.boundingMapRect
-            if !rect.isNull {
+            if !rect.isNull && !coordinator.hasFramedRoute {
                 map.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 65, left: 40, bottom: 65, right: 40), animated: false)
+                coordinator.hasFramedRoute = true
             }
         }
     }
     func makeCoordinator() -> Coordinator { Coordinator() }
     final class Coordinator: NSObject, MKMapViewDelegate {
         var lastCount = -1
+        var hasFramedRoute = false
         var shiftID: UUID?
         var lastRideSignature = ""
         var lastPointTime: TimeInterval = -1
