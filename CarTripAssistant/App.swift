@@ -253,6 +253,9 @@ struct TrackPoint: Codable {
         stationarySince = nil
         save()
         resumeTracking()
+        // Request an immediate fresh fix instead of waiting for the distance
+        // filter to deliver a movement event. Pre-shift fixes are rejected above.
+        location.requestLocation()
     }
     func startRide() {
         guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
@@ -467,7 +470,9 @@ struct TrackPoint: Codable {
         }
         active = shift
         gpsStatus = shift.points.isEmpty ? "等待有效轨迹点（精度需≤35米）" : "GPS 记录中 · \(shift.points.count)点"
-        if Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
+        // Persist the first accepted fix immediately. Otherwise terminating
+        // the app before the 15-second flush can lose the new shift's start.
+        if shift.points.count == 1 || Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
     }
     func restoreArchive(_ url: URL) throws {
         guard active == nil else {
