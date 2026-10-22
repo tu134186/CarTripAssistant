@@ -1310,7 +1310,12 @@ struct Dashboard: View {
                 HStack {
                     Text("筛选结果：\\(filteredHistory.count) 条")
                     Spacer()
-                    Text(String(format: "合计 %.1f km", filteredHistory.reduce(0) { $0 + $1.kilometers }))
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text(String(format: "合计 %.1f km", filteredHistory.reduce(0) { $0 + $1.kilometers }))
+                        Text(String(format: "流水 ¥%.2f · %d 单",
+                                    filteredHistory.compactMap { Double($0.revenue.trimmingCharacters(in: .whitespacesAndNewlines)) }.reduce(0, +),
+                                    filteredHistory.reduce(0) { $0 + $1.completedOrders }))
+                    }
                 }.font(.caption).foregroundStyle(Cockpit.muted)
             }
             if !store.history.isEmpty && filteredHistory.isEmpty {
