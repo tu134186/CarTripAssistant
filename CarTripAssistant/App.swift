@@ -166,6 +166,8 @@ struct TrackPoint: Codable {
     @Published private(set) var latestGPSLocation: CLLocation?
     @Published var gpsReceivedCount = 0
     @Published var gpsSavedCount = 0
+    @Published var gpsNotSavedCount = 0
+    @Published var gpsOutOfOrderCount = 0
     @Published var gpsAccuracyRejectedCount = 0
     @Published var gpsTimestampRejectedCount = 0
     @Published var gpsGapCount = 0
@@ -415,6 +417,7 @@ struct TrackPoint: Codable {
             // Never publish a stale/out-of-order fix as the latest recorder
             // location: otherwise the diagnostic endpoint can move backwards.
             if let last = previous, point.timestamp <= last.timestamp {
+                gpsOutOfOrderCount += 1
                 rejectedGPSCount += 1
                 continue
             }
@@ -503,6 +506,8 @@ struct TrackPoint: Codable {
                 needsNewTrackSegment = false
                 lastSavedLocation = point
                 if point.course >= 0 { lastSavedHeading = point.course }
+            } else {
+                gpsNotSavedCount += 1
             }
             previous = point
         }
@@ -549,6 +554,8 @@ struct TrackPoint: Codable {
             "gpsGapCount": gpsGapCount,
             "gpsReceivedCount": gpsReceivedCount,
             "gpsSavedCount": gpsSavedCount,
+            "gpsNotSavedCount": gpsNotSavedCount,
+            "gpsOutOfOrderCount": gpsOutOfOrderCount,
             "gpsAccuracyRejectedCount": gpsAccuracyRejectedCount,
             "gpsTimestampRejectedCount": gpsTimestampRejectedCount,
             "rejectedGPSCount": rejectedGPSCount,
@@ -1018,6 +1025,8 @@ struct Dashboard: View {
                 toolRow("最近定位距今", store.gpsLastUpdate.map { "\(Int(max(0, Date().timeIntervalSince($0)))) 秒" } ?? "暂无")
                 toolRow("本次启动收到定位", "\(store.gpsReceivedCount) 个")
                 toolRow("本次启动保存轨迹", "\(store.gpsSavedCount) 个")
+                toolRow("有效但未存轨迹", "\(store.gpsNotSavedCount) 个")
+                toolRow("重复或乱序定位", "\(store.gpsOutOfOrderCount) 个")
                 toolRow("精度不达标", "\(store.gpsAccuracyRejectedCount) 个")
                 toolRow("时间异常", "\(store.gpsTimestampRejectedCount) 个")
                 toolRow("当前 GPS 精度", store.gpsAccuracy.map { String(format: "%.1f 米", $0) } ?? "暂无")
