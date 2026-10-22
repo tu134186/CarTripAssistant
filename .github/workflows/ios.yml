@@ -12,6 +12,32 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Apply uploaded V2.2.4 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app.zip
+          unzip -tq app.zip
+          mkdir -p /tmp/cartrip-v224
+          unzip -q app.zip -d /tmp/cartrip-v224
+          ROOT="/tmp/cartrip-v224"
+          if [ ! -f "$ROOT/project.yml" ]; then
+            PROJECT="$(find "$ROOT" -name project.yml -type f | head -1)"
+            test -n "$PROJECT"
+            ROOT="$(dirname "$PROJECT")"
+          fi
+          test -d "$ROOT/CarTripAssistant"
+          cp -R "$ROOT/CarTripAssistant/." CarTripAssistant/
+          cp "$ROOT/project.yml" project.yml
+          if [ -d "$ROOT/scripts" ]; then cp -R "$ROOT/scripts/." scripts/; fi
+          python3 - <<'PY'
+          import plistlib
+          p='CarTripAssistant/Info.plist'
+          with open(p,'rb') as f: info=plistlib.load(f)
+          print('Source version:',info.get('CFBundleShortVersionString'))
+          if info.get('CFBundleShortVersionString')!='2.2.4':
+              raise SystemExit('Uploaded ZIP is not V2.2.4; refusing to compile old version')
+          PY
       - name: Bundle Shenzhen offline roads map
         env:
           GH_TOKEN: ${{ github.token }}
@@ -31,7 +57,11 @@ jobs:
         run: |
           python3 -m venv /tmp/cartrip-icon-venv
           /tmp/cartrip-icon-venv/bin/python -m pip install pillow
-          /tmp/cartrip-icon-venv/bin/python scripts/create_app_icon.py
+          if [ -d CarTripAssistant/Assets.xcassets/AppIcon.appiconset ] && find CarTripAssistant/Assets.xcassets/AppIcon.appiconset -iname '*.png' | grep -q .; then
+            echo 'Using AppIcon assets from V2.2.4 source'
+          else
+            /tmp/cartrip-icon-venv/bin/python scripts/create_app_icon.py
+          fi
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -41,12 +71,26 @@ jobs:
           xcodebuild -project CarTripAssistant.xcodeproj -scheme CarTripAssistant -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/CarTripAssistant.app Payload/
-          zip -qry CarTripAssistant-V2.2.1-unsigned.ipa Payload
+          zip -qry CarTripAssistant-V2.2.4-unsigned.ipa Payload
+      - name: Verify IPA icon assets
+        run: |
+          python3 - <<'PY'
+          import zipfile,plistlib
+          ipa='CarTripAssistant-V2.2.4-unsigned.ipa'
+          with zipfile.ZipFile(ipa) as z:
+              names=z.namelist()
+              info=plistlib.loads(z.read('Payload/CarTripAssistant.app/Info.plist'))
+              assert info.get('CFBundleShortVersionString')=='2.2.4', info.get('CFBundleShortVersionString')
+              assert 'Payload/CarTripAssistant.app/Assets.car' in names, 'Compiled asset catalog missing'
+              icon=info.get('CFBundleIcons',{}).get('CFBundlePrimaryIcon',{})
+              assert icon.get('CFBundleIconName')=='AppIcon' or icon.get('CFBundleIconFiles'), 'No primary icon metadata'
+              print('Verified V2.2.4 and compiled AppIcon metadata')
+          PY
       - name: Verify embedded offline map in IPA
         run: |
           python3 - <<'PY'
           import io, sqlite3, tempfile, zipfile, os
-          ipa = "CarTripAssistant-V2.2.1-unsigned.ipa"
+          ipa = "CarTripAssistant-V2.2.4-unsigned.ipa"
           with zipfile.ZipFile(ipa) as z:
               candidates = [n for n in z.namelist() if n.endswith("/OfflineMap.mbtiles")]
               if len(candidates) != 1:
@@ -65,15 +109,15 @@ jobs:
           PY
       - name: Package V2.2.1 source archive
         run: |
-          git archive --format=zip --output="V2.2.1-行程助手-源码.zip" HEAD
-          unzip -t "V2.2.1-行程助手-源码.zip" | tail -1
+          cp app.zip "V2.2.4-行程助手-源码.zip"
+          unzip -t "V2.2.4-行程助手-源码.zip" | tail -1
       - uses: actions/upload-artifact@v4
         with:
-          name: V2.2.1-行程助手-源码
-          path: V2.2.1-行程助手-源码.zip
+          name: V2.2.4-行程助手-源码
+          path: V2.2.4-行程助手-源码.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: CarTripAssistant-V2.2.1-unsigned-IPA
-          path: CarTripAssistant-V2.2.1-unsigned.ipa
+          name: CarTripAssistant-V2.2.4-unsigned-IPA
+          path: CarTripAssistant-V2.2.4-unsigned.ipa
           if-no-files-found: error
