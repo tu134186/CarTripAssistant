@@ -723,11 +723,13 @@ struct Dashboard: View {
         ZStack {
             Cockpit.background.ignoresSafeArea()
             VStack(spacing: 0) {
-                header
-                    .padding(.horizontal, 18)
-                    .padding(.top, 12)
-                    .padding(.bottom, 14)
-                    .background(Cockpit.background)
+                if selectedTab == 0 {
+                    header
+                        .padding(.horizontal, 18)
+                        .padding(.top, 12)
+                        .padding(.bottom, 14)
+                        .background(Cockpit.background)
+                }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         if selectedTab == 0 {
@@ -1328,7 +1330,7 @@ struct Dashboard: View {
             }
             if !store.history.isEmpty {
                 HStack {
-                    Text("筛选结果：\\(filteredHistory.count) 条")
+                    Text("筛选结果：\(filteredHistory.count) 条")
                     Spacer()
                     VStack(alignment: .trailing, spacing: 3) {
                         Text(String(format: "合计 %.1f km", filteredHistory.reduce(0) { $0 + $1.kilometers }))
@@ -1363,8 +1365,10 @@ struct Dashboard: View {
                 HStack(spacing: 12) {
                     Button { detailShift = item } label: {
                     VStack(alignment: .leading, spacing: 7) {
-                        Text(item.started.formatted(date: .abbreviated, time: .omitted))
+                        Text(item.started.formatted(.dateTime.year().month().day()))
                             .font(.system(size: 16, weight: .bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                         Text("\(item.completedOrders) 单  ·  " + String(format: "%.2f km", item.kilometers))
                             .font(.system(size: 13)).foregroundStyle(Cockpit.muted)
                         Text(item.revenue.isEmpty ? "今日流水：未填写" : "今日流水：¥" + item.revenue)
