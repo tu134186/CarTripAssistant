@@ -1695,7 +1695,7 @@ private struct RouteDetail: View {
         let gaps = zip(points, points.dropFirst()).filter {
             $1.date.timeIntervalSince($0.date) > 8
         }.count
-        return "轨迹质量：精度≤20米 \\(accurate)/\\(points.count)点 · 精度>35米 \\(weak)点 · 分段 \\(segments)次 · 间隔>8秒 \\(gaps)次"
+        return String(format: "轨迹质量：精度≤20米 %d/%d点 · 精度>35米 %d点 · 分段 %d次 · 间隔>8秒 %d次", accurate, points.count, weak, segments, gaps)
     }
     @State private var importMap = false
     @State private var mapRevision = 0
