@@ -340,7 +340,7 @@ struct TrackPoint: Codable {
     }
     private func recordBoundaryPoint(_ shift: inout Shift) {
         guard let point = location.location,
-              point.horizontalAccuracy > 0, point.horizontalAccuracy <= 35,
+              point.horizontalAccuracy > 0, point.horizontalAccuracy <= 80,
               abs(point.timestamp.timeIntervalSinceNow) < 15 else { return }
         if let last = shift.points.last, abs(last.date.timeIntervalSince(point.timestamp)) < 1 { return }
         shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
@@ -356,10 +356,10 @@ struct TrackPoint: Codable {
         guard elapsed > 0 else { return false }
         // Record near-1-second real GPS fixes while driving, not fabricated points.
         // Core Location decides the callback frequency.
-        let moving = point.speed >= 1.0 || (previous?.speed ?? -1) >= 1.0
-        if moving { return elapsed >= 1 && meters >= 1.5 }
+        let moving = point.speed >= 0.5 || (previous?.speed ?? -1) >= 0.5 || meters >= max(4, point.horizontalAccuracy * 0.35)
+        if moving { return elapsed >= 0.8 && meters >= 1.0 }
         // Do not draw stationary GPS jitter as a road.
-        return elapsed >= 30 && meters >= max(15, point.horizontalAccuracy * 1.5)
+        return elapsed >= 10 && meters >= max(5, point.horizontalAccuracy * 0.6)
     }
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
@@ -397,7 +397,7 @@ struct TrackPoint: Codable {
             // Core Location may deliver a cached fix from before this shift began.
             // Never allow that older coordinate to become the new trip's start pin.
             guard point.timestamp >= shift.started.addingTimeInterval(-2),
-                  point.horizontalAccuracy > 0, point.horizontalAccuracy <= 35,
+                  point.horizontalAccuracy > 0, point.horizontalAccuracy <= 80,
                   point.timestamp.timeIntervalSinceNow <= 10,
                   point.timestamp.timeIntervalSinceNow >= -21600 else {
                 rejectedGPSCount += 1
@@ -499,7 +499,7 @@ struct TrackPoint: Codable {
             previous = point
         }
         active = shift
-        gpsStatus = shift.points.isEmpty ? "等待有效轨迹点（精度需≤35米）" : "GPS 记录中 · \(shift.points.count)点"
+        gpsStatus = shift.points.isEmpty ? "等待有效轨迹点（精度需≤80米）" : "GPS 记录中 · \(shift.points.count)点"
         // Persist the first accepted fix immediately. Otherwise terminating
         // the app before the 15-second flush can lose the new shift's start.
         if (countBeforeUpdate == 0 && !shift.points.isEmpty) || Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
