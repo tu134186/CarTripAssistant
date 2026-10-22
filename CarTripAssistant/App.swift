@@ -1244,6 +1244,7 @@ private struct RouteDetail: View {
     let shift: Shift
     @State private var importMap = false
     @State private var mapRevision = 0
+    @StateObject private var mapDownload = ShenzhenMapDownload()
     @State private var mapError: String?
     var body: some View {
         VStack(spacing: 0) {
@@ -1251,12 +1252,31 @@ private struct RouteDetail: View {
                 .id(mapRevision)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack {
-                Text(OfflineMap.file == nil ? "在线地图" : "已内置深圳离线道路图 · © OpenStreetMap")
+                Text(OfflineMap.file == nil ? "在线地图 · 深圳离线包未下载" : "深圳离线道路图已安装 · © OpenStreetMap")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("导入 MBTiles 地图") { importMap = true }
+                if OfflineMap.file == nil {
+                    Button(mapDownload.downloading ? "取消下载" : "下载深圳地图") {
+                        if mapDownload.downloading { mapDownload.cancel() }
+                        else { mapDownload.start { mapRevision += 1 } }
+                    }.font(.caption.bold())
+                } else {
+                    Button("删除地图") {
+                        try? OfflineMap.remove()
+                        mapRevision += 1
+                    }.font(.caption.bold()).foregroundStyle(.red)
+                }
+                Button("导入") { importMap = true }
                     .font(.caption.bold())
             }.padding(.horizontal, 15).padding(.top, 10)
+            if mapDownload.downloading {
+                ProgressView(value: mapDownload.progress).padding(.horizontal, 15)
+                Text("下载深圳地图：\(Int(mapDownload.progress * 100))%")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let message = mapDownload.errorMessage {
+                Text(message).font(.caption).foregroundStyle(.red).padding(.horizontal, 15)
+            }
             HStack(spacing: 18) {
                 Label("全天轨迹", systemImage: "line.diagonal").foregroundStyle(.blue)
                 Label("载客区间", systemImage: "line.diagonal").foregroundStyle(.green)
@@ -1316,7 +1336,12 @@ private enum OfflineMap {
         let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let url = folder.appendingPathComponent("offline.mbtiles")
         if FileManager.default.fileExists(atPath: url.path) { return url }
-        return Bundle.main.url(forResource: "OfflineMap", withExtension: "mbtiles")
+        return nil
+    }
+    static func remove() throws {
+        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let target = folder.appendingPathComponent("offline.mbtiles")
+        if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
     }
     static func install(_ source: URL) throws {
         let fm = FileManager.default
@@ -1362,6 +1387,63 @@ private enum OfflineMap {
             _ = try fm.replaceItemAt(target, withItemAt: temp, backupItemName: nil, options: [])
         } else {
             try fm.moveItem(at: temp, to: target)
+        }
+    }
+}
+private final class ShenzhenMapDownload: NSObject, ObservableObject, URLSessionDownloadDelegate {
+    @Published var progress: Double = 0
+    @Published var downloading = false
+    @Published var errorMessage: String?
+    private var task: URLSessionDownloadTask?
+    private var session: URLSession?
+    private var completion: (() -> Void)?
+    private let mapURL = URL(string: "https://github.com/tu134186/CarTripAssistant/releases/download/shenzhen-map-v1/Shenzhen-Roads.mbtiles")!
+    func start(completion: @escaping () -> Void) {
+        guard !downloading else { return }
+        self.completion = completion
+        errorMessage = nil
+        progress = 0
+        downloading = true
+        let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        self.session = session
+        task = session.downloadTask(with: mapURL)
+        task?.resume()
+    }
+    func cancel() {
+        task?.cancel()
+        task = nil
+        downloading = false
+        session?.invalidateAndCancel()
+        session = nil
+    }
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        DispatchQueue.main.async { self.progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) }
+    }
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        do {
+            guard (downloadTask.response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw NSError(domain: "ShenzhenMap", code: 2, userInfo: [NSLocalizedDescriptionKey: "地图下载地址不可用，请稍后重试或手动导入 MBTiles"])
+            }
+            try OfflineMap.install(location)
+            DispatchQueue.main.async {
+                self.downloading = false
+                self.progress = 1
+                self.completion?()
+                self.completion = nil
+            }
+        } catch {
+            DispatchQueue.main.async { self.errorMessage = error.localizedDescription; self.downloading = false }
+        }
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        DispatchQueue.main.async {
+            if let error = error, (error as NSError).code != NSURLErrorCancelled {
+                self.errorMessage = error.localizedDescription
+                self.downloading = false
+            }
+            self.session?.finishTasksAndInvalidate()
+            self.session = nil
         }
     }
 }
