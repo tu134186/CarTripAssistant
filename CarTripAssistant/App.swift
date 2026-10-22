@@ -1361,6 +1361,7 @@ private struct TripRouteMap: UIViewRepresentable {
         var segment: [CLLocationCoordinate2D] = []
         var segmentPassenger = false
         var previousDate: Date?
+        var previousCoordinate: CLLocationCoordinate2D?
         func flush() {
             guard segment.count >= 2 else { segment.removeAll(); return }
             let overlay = RouteOverlay(coordinates: segment, count: segment.count)
@@ -1372,11 +1373,27 @@ private struct TripRouteMap: UIViewRepresentable {
             let passenger = shift.rides.contains { ride in
                 p.date >= ride.started && p.date <= (ride.ended ?? Date())
             }
-            if p.segmentStart || passenger != segmentPassenger || (previousDate.map { p.date.timeIntervalSince($0) > 120 } ?? false) {
+            let coordinate = CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon)
+            let elapsed = previousDate.map { p.date.timeIntervalSince($0) } ?? 0
+            let jumped = previousCoordinate.map { previous in
+                elapsed > 0 && CLLocation(latitude: previous.latitude, longitude: previous.longitude)
+                    .distance(from: CLLocation(latitude: p.lat, longitude: p.lon)) / elapsed >= 50
+            } ?? false
+            // A discontinuity is not a driven road. Never draw a straight
+            // connector across a GPS gap, reversed timestamp or impossible jump.
+            if p.segmentStart || elapsed > 120 || (previousDate != nil && elapsed <= 0) || jumped {
                 flush()
+                segmentPassenger = passenger
+            } else if passenger != segmentPassenger {
+                // Keep the boundary coordinate so the color changes without
+                // leaving a visual gap between empty and passenger mileage.
+                let boundary = segment.last
+                flush()
+                segmentPassenger = passenger
+                if let boundary { segment.append(boundary) }
             }
-            segmentPassenger = passenger
-            segment.append(CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon))
+            segment.append(coordinate)
+            previousCoordinate = coordinate
             previousDate = p.date
         }
         flush()
