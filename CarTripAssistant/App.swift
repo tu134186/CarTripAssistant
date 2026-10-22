@@ -930,6 +930,16 @@ struct Dashboard: View {
                 let monthRevenue = month.compactMap { Double($0.revenue.trimmingCharacters(in: .whitespacesAndNewlines)) }.reduce(0, +)
                 toolRow("本月已录入流水", String(format: "¥%.2f", monthRevenue))
                 toolRow("本月平均每小时流水", monthSeconds > 0 ? String(format: "¥%.1f", monthRevenue * 3600 / monthSeconds) : "暂无")
+                let monthKM = month.reduce(0.0) { $0 + $1.kilometers }
+                let monthOrders = month.reduce(0) { $0 + $1.completedOrders }
+                let monthPassengerKM = month.reduce(0.0) { $0 + $1.passengerKM }
+                toolRow("本月每公里流水", monthKM > 0 ? String(format: "¥%.2f/km", monthRevenue / monthKM) : "暂无")
+                toolRow("本月每单平均流水", monthOrders > 0 ? String(format: "¥%.2f", monthRevenue / Double(monthOrders)) : "暂无")
+                toolRow("本月载客里程占比", monthKM > 0 ? String(format: "%.1f%%", monthPassengerKM / monthKM * 100) : "暂无")
+                let weekRevenue = week.compactMap { Double($0.revenue.trimmingCharacters(in: .whitespacesAndNewlines)) }.reduce(0, +)
+                let yearRevenue = year.compactMap { Double($0.revenue.trimmingCharacters(in: .whitespacesAndNewlines)) }.reduce(0, +)
+                toolRow("本周已录入流水", String(format: "¥%.2f", weekRevenue))
+                toolRow("今年已录入流水", String(format: "¥%.2f", yearRevenue))
             }
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             VStack(alignment: .leading, spacing: 12) {
