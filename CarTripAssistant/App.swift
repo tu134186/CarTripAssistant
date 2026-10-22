@@ -164,6 +164,7 @@ struct TrackPoint: Codable {
     @Published var gpsSpeed: Double?
     @Published var gpsLastUpdate: Date?
     @Published private(set) var latestGPSLocation: CLLocation?
+    @Published var gpsRecoveredFromBackup = false
     @Published var gpsReceivedCount = 0
     @Published var gpsSavedCount = 0
     @Published var gpsNotSavedCount = 0
@@ -197,8 +198,9 @@ struct TrackPoint: Codable {
         super.init()
         let primaryData = try? Data(contentsOf: file)
         let backupData = try? Data(contentsOf: backupFile)
-        let saved = primaryData.flatMap { try? JSONDecoder().decode(Saved.self, from: $0) }
-            ?? backupData.flatMap { try? JSONDecoder().decode(Saved.self, from: $0) }
+        let primarySaved = primaryData.flatMap { try? JSONDecoder().decode(Saved.self, from: $0) }
+        let saved = primarySaved ?? backupData.flatMap { try? JSONDecoder().decode(Saved.self, from: $0) }
+        gpsRecoveredFromBackup = primarySaved == nil && saved != nil
         if let saved {
             active = saved.active
             history = saved.history
@@ -214,6 +216,7 @@ struct TrackPoint: Codable {
         location.pausesLocationUpdatesAutomatically = false
         location.allowsBackgroundLocationUpdates = true
         if active != nil {
+            needsNewTrackSegment = true
             if let p = active?.points.last {
                 lastSavedLocation = CLLocation(latitude: p.lat, longitude: p.lon)
             }
@@ -544,6 +547,7 @@ struct TrackPoint: Codable {
         let payload: [String: Any] = [
             "createdAt": ISO8601DateFormatter().string(from: Date()),
             "gpsStatus": gpsStatus,
+            "recoveredFromBackup": gpsRecoveredFromBackup,
             "motionStatus": motionStatus,
             "accuracyMeters": gpsAccuracy as Any,
             "speedKmh": gpsSpeed as Any,
@@ -1033,6 +1037,7 @@ struct Dashboard: View {
                 toolRow("GPS 超时断点", "\(store.gpsGapCount) 次")
                 toolRow("GPS 无效点", "\(store.rejectedGPSCount) 个")
                 toolRow("定位错误", "\(store.gpsErrorCount) 次")
+                toolRow("数据恢复来源", store.gpsRecoveredFromBackup ? "备用快照" : "主数据或新建")
                 toolRow("定位权限", store.gpsAuthorization)
                 toolRow("系统暂停 / 恢复", "\(store.gpsPauseCount) / \(store.gpsResumeCount) 次")
                 Button {
