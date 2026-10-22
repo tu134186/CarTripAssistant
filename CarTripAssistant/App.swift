@@ -164,6 +164,10 @@ struct TrackPoint: Codable {
     @Published var gpsSpeed: Double?
     @Published var gpsLastUpdate: Date?
     @Published private(set) var latestGPSLocation: CLLocation?
+    @Published var gpsReceivedCount = 0
+    @Published var gpsSavedCount = 0
+    @Published var gpsAccuracyRejectedCount = 0
+    @Published var gpsTimestampRejectedCount = 0
     @Published var gpsGapCount = 0
     @Published var rejectedGPSCount = 0
     @Published var gpsErrorCount = 0
@@ -394,6 +398,7 @@ struct TrackPoint: Codable {
         guard var shift = active else { return }
         let countBeforeUpdate = shift.points.count
         for point in locations {
+            gpsReceivedCount += 1
             // Core Location may deliver a cached fix from before this shift began.
             // Never allow that older coordinate to become the new trip's start pin.
             guard point.timestamp >= shift.started.addingTimeInterval(-2),
@@ -401,6 +406,8 @@ struct TrackPoint: Codable {
                   point.timestamp.timeIntervalSinceNow <= 10,
                   point.timestamp.timeIntervalSinceNow >= -21600 else {
                 rejectedGPSCount += 1
+                if point.horizontalAccuracy <= 0 || point.horizontalAccuracy > 80 { gpsAccuracyRejectedCount += 1 }
+                else { gpsTimestampRejectedCount += 1 }
                 continue
             }
             gpsAccuracy = point.horizontalAccuracy
@@ -492,6 +499,7 @@ struct TrackPoint: Codable {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                               date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed,
                                               segmentStart: needsNewTrackSegment))
+                gpsSavedCount += 1
                 needsNewTrackSegment = false
                 lastSavedLocation = point
                 if point.course >= 0 { lastSavedHeading = point.course }
@@ -539,6 +547,10 @@ struct TrackPoint: Codable {
             "activePoints": active?.points.count ?? 0,
             "historyCount": history.count,
             "gpsGapCount": gpsGapCount,
+            "gpsReceivedCount": gpsReceivedCount,
+            "gpsSavedCount": gpsSavedCount,
+            "gpsAccuracyRejectedCount": gpsAccuracyRejectedCount,
+            "gpsTimestampRejectedCount": gpsTimestampRejectedCount,
             "rejectedGPSCount": rejectedGPSCount,
             "gpsErrorCount": gpsErrorCount,
             "gpsPauseCount": gpsPauseCount,
@@ -989,6 +1001,11 @@ struct Dashboard: View {
                     .font(.headline).foregroundStyle(.orange)
                 toolRow("历史记录", "\(store.history.count) 条")
                 toolRow("最近定位距今", store.gpsLastUpdate.map { "\(Int(max(0, Date().timeIntervalSince($0)))) 秒" } ?? "暂无")
+                toolRow("本次启动收到定位", "\(store.gpsReceivedCount) 个")
+                toolRow("本次启动保存轨迹", "\(store.gpsSavedCount) 个")
+                toolRow("精度不达标", "\(store.gpsAccuracyRejectedCount) 个")
+                toolRow("时间异常", "\(store.gpsTimestampRejectedCount) 个")
+                toolRow("当前 GPS 精度", store.gpsAccuracy.map { String(format: "%.1f 米", $0) } ?? "暂无")
                 toolRow("GPS 超时断点", "\(store.gpsGapCount) 次")
                 toolRow("GPS 无效点", "\(store.rejectedGPSCount) 个")
                 toolRow("定位错误", "\(store.gpsErrorCount) 次")
