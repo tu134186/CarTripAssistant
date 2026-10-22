@@ -348,10 +348,14 @@ struct TrackPoint: Codable {
         save()
     }
     private func recordBoundaryPoint(_ shift: inout Shift) {
-        guard let point = location.location,
+        // Boundary markers must not inject cached fixes from before this shift
+        // or rewind an already-recorded track when Core Location updates lag.
+        guard let point = latestGPSLocation,
+              point.timestamp >= shift.started.addingTimeInterval(-2),
               point.horizontalAccuracy > 0, point.horizontalAccuracy <= 80,
-              abs(point.timestamp.timeIntervalSinceNow) < 15 else { return }
-        if let last = shift.points.last, abs(last.date.timeIntervalSince(point.timestamp)) < 1 { return }
+              point.timestamp.timeIntervalSinceNow <= 5,
+              point.timestamp.timeIntervalSinceNow >= -15 else { return }
+        if let last = shift.points.last, point.timestamp <= last.date { return }
         shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                       date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed))
         lastSavedLocation = point
