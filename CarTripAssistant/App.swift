@@ -509,6 +509,31 @@ struct TrackPoint: Codable {
               (try? data.write(to: url, options: .atomic)) != nil else { return nil }
         return url
     }
+    func exportHistoryCSV() -> URL? {
+        func cell(_ value: String) -> String {
+            "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
+        let formatter = ISO8601DateFormatter()
+        var lines = ["开始时间,结束时间,总里程km,载客里程km,空驶里程km,休息里程km,完成订单,流水元,备注"]
+        for shift in history.sorted(by: { $0.started < $1.started }) {
+            let columns = [
+                formatter.string(from: shift.started),
+                shift.ended.map { formatter.string(from: $0) } ?? "",
+                String(format: "%.3f", shift.kilometers),
+                String(format: "%.3f", shift.passengerKM),
+                String(format: "%.3f", shift.emptyKilometers),
+                String(format: "%.3f", shift.restKilometers),
+                String(shift.completedOrders),
+                shift.revenue,
+                shift.notes
+            ]
+            lines.append(columns.map(cell).joined(separator: ","))
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("CarTripAssistant-History.csv")
+        guard let data = ("\\u{FEFF}" + lines.joined(separator: "\\r\\n")).data(using: .utf8),
+              (try? data.write(to: url, options: .atomic)) != nil else { return nil }
+        return url
+    }
     func exportArchive() -> URL? {
         guard let data = try? JSONEncoder().encode(Saved(active: active, history: history)) else { return nil }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("CarTripAssistant-Backup.json")
@@ -897,6 +922,13 @@ struct Dashboard: View {
                         .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
+                Button {
+                    gpxExport = store.exportHistoryCSV()
+                } label: {
+                    Label("导出历史统计 CSV", systemImage: "tablecells")
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                        .background(Cockpit.secondary, in: RoundedRectangle(cornerRadius: 12))
+                }.buttonStyle(.plain)
                 Button {
                 showRestorePicker = true
             } label: {
