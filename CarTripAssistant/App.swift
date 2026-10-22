@@ -424,6 +424,46 @@ struct TrackPoint: Codable {
         gpsStatus = "GPS 记录中"
         if Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
     }
+    func restoreArchive(_ url: URL) throws {
+        let granted = url.startAccessingSecurityScopedResource()
+        defer { if granted { url.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: url)
+        let decoded = try JSONDecoder().decode(Saved.self, from: data)
+        // Never silently overwrite existing data: keep an independent timestamped snapshot.
+        if let current = try? Data(contentsOf: file) {
+            let stamp = Int(Date().timeIntervalSince1970)
+            let archive = file.deletingLastPathComponent().appendingPathComponent("trips-before-restore-\\(stamp).json")
+            try current.write(to: archive, options: .atomic)
+        }
+        try data.write(to: file, options: .atomic)
+        active = decoded.active
+        history = decoded.history
+        safeToWrite = true
+        previous = nil
+        lastSavedLocation = nil
+        needsNewTrackSegment = true
+        if active != nil { resumeTracking() }
+    }
+    func exportDiagnostics() -> URL? {
+        let payload: [String: Any] = [
+            "createdAt": ISO8601DateFormatter().string(from: Date()),
+            "gpsStatus": gpsStatus,
+            "motionStatus": motionStatus,
+            "accuracyMeters": gpsAccuracy as Any,
+            "speedKmh": gpsSpeed as Any,
+            "lastGPSUpdate": gpsLastUpdate.map { ISO8601DateFormatter().string(from: $0) } ?? "none",
+            "activeShift": active != nil,
+            "activePoints": active?.points.count ?? 0,
+            "historyCount": history.count,
+            "locationAuthorization": location.authorizationStatus.rawValue,
+            "backgroundLocationEnabled": location.allowsBackgroundLocationUpdates
+        ]
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("CarTripAssistant-Diagnostics.json")
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
+              (try? data.write(to: url, options: .atomic)) != nil else { return nil }
+        return url
+    }
     func exportArchive() -> URL? {
         guard let data = try? JSONEncoder().encode(Saved(active: active, history: history)) else { return nil }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("CarTripAssistant-Backup.json")
@@ -523,6 +563,10 @@ struct Dashboard: View {
     @State private var deletionTarget: UUID?
     @State private var gpxExport: URL?
     @State private var selectedTab = 0
+    @State private var showRestorePicker = false
+    @State private var restoreNotice: String?
+    @State private var confirmRestore = false
+    @State private var pendingRestore: URL?
     private var riding: Bool { store.active?.rides.last.map { $0.ended == nil } ?? false }
     private var resting: Bool { store.active?.breaks.last.map { $0.ended == nil } ?? false }
     private var activeRideStart: Date? { guard let ride = store.active?.rides.last, ride.ended == nil else { return nil }; return ride.started }
@@ -574,6 +618,32 @@ struct Dashboard: View {
             }
         }
         }
+        .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json]) { result in
+            switch result {
+            case .success(let url):
+                let granted = url.startAccessingSecurityScopedResource()
+                defer { if granted { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let temp = FileManager.default.temporaryDirectory.appendingPathComponent("incoming-trip-restore.json")
+                    if FileManager.default.fileExists(atPath: temp.path) { try FileManager.default.removeItem(at: temp) }
+                    try FileManager.default.copyItem(at: url, to: temp)
+                    pendingRestore = temp
+                    confirmRestore = true
+                } catch { restoreNotice = "读取备份失败：\\(error.localizedDescription)" }
+            case .failure(let error): restoreNotice = error.localizedDescription
+            }
+        }
+        .confirmationDialog("恢复备份将替换当前行程与历史记录。原数据会自动另存备份。是否继续？", isPresented: $confirmRestore, titleVisibility: .visible) {
+            Button("确认恢复", role: .destructive) {
+                guard let url = pendingRestore else { return }
+                do { try store.restoreArchive(url); restoreNotice = "恢复成功，原有数据已另存备份" }
+                catch { restoreNotice = "恢复失败：\\(error.localizedDescription)" }
+                pendingRestore = nil
+            }
+        }
+        .alert("数据恢复", isPresented: Binding(get: { restoreNotice != nil }, set: { if !$0 { restoreNotice = nil } })) {
+            Button("确定", role: .cancel) { restoreNotice = nil }
+        } message: { Text(restoreNotice ?? "") }
         .preferredColorScheme(.dark)
         .sheet(item: Binding(
             get: { gpxExport.map { ExportItem(url: $0) } },
@@ -704,8 +774,24 @@ struct Dashboard: View {
     private var toolsPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("驾驶工具箱").font(.system(size: 23, weight: .bold))
-            Text("定位诊断 · 停车识别 · 行程备份")
+            Text("定位诊断 · 停车识别 · 行程备份与恢复 · 里程统计")
                 .font(.caption).foregroundStyle(Cockpit.muted)
+            VStack(alignment: .leading, spacing: 12) {
+                Label("行程统计", systemImage: "chart.bar.fill")
+                    .font(.headline).foregroundStyle(Cockpit.green)
+                let shifts = store.history + (store.active.map { [$0] } ?? [])
+                let calendar = Calendar.current
+                let today = shifts.filter { calendar.isDateInToday($0.started) }
+                let week = shifts.filter { calendar.isDate($0.started, equalTo: Date(), toGranularity: .weekOfYear) }
+                let month = shifts.filter { calendar.isDate($0.started, equalTo: Date(), toGranularity: .month) }
+                let year = shifts.filter { calendar.isDate($0.started, equalTo: Date(), toGranularity: .year) }
+                toolRow("今日里程", String(format: "%.1f km", today.reduce(0) { $0 + $1.kilometers }))
+                toolRow("本周里程", String(format: "%.1f km", week.reduce(0) { $0 + $1.kilometers }))
+                toolRow("本月里程", String(format: "%.1f km", month.reduce(0) { $0 + $1.kilometers }))
+                toolRow("今年里程", String(format: "%.1f km", year.reduce(0) { $0 + $1.kilometers }))
+                toolRow("累计订单", "\\(shifts.reduce(0) { $0 + $1.rides.count }) 单")
+            }
+            .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             VStack(alignment: .leading, spacing: 12) {
                 Label("GPS 定位状态", systemImage: "location.circle.fill")
                     .font(.headline).foregroundStyle(Cockpit.blue)
@@ -749,14 +835,29 @@ struct Dashboard: View {
                         .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
-                Text("目前提供备份导出；恢复导入尚未开放，避免误覆盖原有记录。")
+                Button {
+                showRestorePicker = true
+            } label: {
+                Label("从 JSON 备份恢复", systemImage: "square.and.arrow.down")
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .background(Cockpit.secondary, in: RoundedRectangle(cornerRadius: 12))
+            }.buttonStyle(.plain)
+            Text("恢复前会自动保存旧数据快照；请先结束正在进行的行程。")
                     .font(.caption).foregroundStyle(Cockpit.muted)
             }
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             VStack(alignment: .leading, spacing: 8) {
                 Label("行程诊断", systemImage: "waveform.path.ecg")
                     .font(.headline).foregroundStyle(.orange)
-                toolRow("历史记录", "\(store.history.count) 条")
+                toolRow("历史记录", "\\(store.history.count) 条")
+                toolRow("最近定位距今", store.gpsLastUpdate.map { "\\(Int(max(0, Date().timeIntervalSince($0)))) 秒" } ?? "暂无")
+                Button {
+                    gpxExport = store.exportDiagnostics()
+                } label: {
+                    Label("导出 GPS 诊断报告", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity).padding(.vertical, 11)
+                        .background(Cockpit.secondary, in: RoundedRectangle(cornerRadius: 12))
+                }.buttonStyle(.plain)
                 toolRow("当前行程", store.active == nil ? "无" : "记录中")
                 Text("原地停车出现里程增加时，可查看 GPS 精度、速度和运动识别数据。")
                     .font(.caption).foregroundStyle(Cockpit.muted)
