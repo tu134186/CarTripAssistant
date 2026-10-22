@@ -1483,6 +1483,11 @@ private struct RouteDetail: View {
                 }
                 Button("导入") { importMap = true }
                     .font(.caption.bold())
+                if OfflineMap.file == nil {
+                    Link(destination: URL(string: "https://github.com/tu134186/CarTripAssistant/releases/tag/shenzhen-map-v1")!) {
+                        Label("浏览器下载", systemImage: "safari")
+                    }.font(.caption.bold())
+                }
             }.padding(.horizontal, 15).padding(.top, 10)
             if mapDownload.downloading {
                 ProgressView(value: mapDownload.progress).padding(.horizontal, 15)
@@ -1490,7 +1495,13 @@ private struct RouteDetail: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let message = mapDownload.errorMessage {
-                Text(message).font(.caption).foregroundStyle(.red).padding(.horizontal, 15)
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(message).font(.caption).foregroundStyle(.red)
+                    Text("若 APP 内下载失败，可点「浏览器下载」，在 GitHub 下载 .mbtiles 文件，再返回本页点「导入」。不要导入 ZIP。")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    Button("重试下载") { mapDownload.start { mapRevision += 1 } }
+                        .font(.caption.bold())
+                }.padding(.horizontal, 15)
             }
             if replayCount > 1 {
                 VStack(spacing: 7) {
