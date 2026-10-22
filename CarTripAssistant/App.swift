@@ -1280,6 +1280,7 @@ private struct TripRouteMap: UIViewRepresentable {
         map.delegate = context.coordinator
         map.overrideUserInterfaceStyle = .dark
         map.showsCompass = true
+        map.showsUserLocation = true // Blue dot: live Core Location, distinct from stored trip start/end pins.
         map.isRotateEnabled = false
         let shenzhen = CLLocationCoordinate2D(latitude: 22.60, longitude: 114.05)
         map.setRegion(MKCoordinateRegion(center: shenzhen, span: MKCoordinateSpan(latitudeDelta: 0.45, longitudeDelta: 0.65)), animated: false)
@@ -1345,8 +1346,17 @@ private struct TripRouteMap: UIViewRepresentable {
         let last = MKPointAnnotation()
         last.title = "终点 / 最新位置"
         last.coordinate = CLLocationCoordinate2D(latitude: points[points.count-1].lat, longitude: points[points.count-1].lon)
-        map.addAnnotations([first,last])
-        map.showAnnotations([first,last], animated: false)
+        if points.count == 1 {
+            // One GPS sample cannot describe a route or a current position.
+            // Avoid overlapping "start" and "latest" pins that mislead the driver.
+            map.addAnnotation(first)
+            let region = MKCoordinateRegion(center: first.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012))
+            map.setRegion(region, animated: false)
+        } else {
+            map.addAnnotations([first, last])
+            map.showAnnotations([first, last], animated: false)
+        }
         if points.count > 2 {
             let coords = points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
             let poly = MKPolyline(coordinates: coords, count: coords.count)
@@ -1536,6 +1546,10 @@ private struct RouteDetail: View {
                 Text(String(format: "总里程 %.2f km  ·  载客 %.2f km", shift.kilometers, shift.passengerKM))
                     .font(.headline)
                 Text("\(shift.completedOrders) 单 · \(shift.points.count) 个轨迹点")
+                if shift.points.count < 2 {
+                    Text("当前仅记录到 \(shift.points.count) 个 GPS 点：红色图钉是行程起点，不代表实时位置；地图蓝点才是手机当前定位。请等待 GPS 更新。")
+                        .font(.caption).foregroundStyle(.orange)
+                }
                     .font(.caption).foregroundStyle(.secondary)
                 Text("蓝线是记录的 GPS 轨迹，绿线按乘客上下车时间标记。定位断点、步行点和漂移可能影响地图及里程。")
                     .font(.caption).foregroundStyle(.secondary)
