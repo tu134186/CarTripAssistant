@@ -1644,7 +1644,11 @@ private final class ShenzhenMapDownload: NSObject, ObservableObject, URLSessionD
         errorMessage = nil
         progress = 0
         downloading = true
-        let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 45
+        config.timeoutIntervalForResource = 1800
+        config.waitsForConnectivity = true
+        let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         self.session = session
         task = session.downloadTask(with: mapURL)
         task?.resume()
@@ -1662,8 +1666,13 @@ private final class ShenzhenMapDownload: NSObject, ObservableObject, URLSessionD
     }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         do {
-            guard (downloadTask.response as? HTTPURLResponse)?.statusCode == 200 else {
-                throw NSError(domain: "ShenzhenMap", code: 2, userInfo: [NSLocalizedDescriptionKey: "地图下载地址不可用，请稍后重试或手动导入 MBTiles"])
+            let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
+            guard status == 200 else {
+                throw NSError(domain: "ShenzhenMap", code: status, userInfo: [NSLocalizedDescriptionKey: "下载服务器返回 HTTP \(status)。可尝试在 GitHub Release 页面下载后手动导入。"])
+            }
+            let size = (try? FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value ?? 0
+            guard size > 1024 * 1024 else {
+                throw NSError(domain: "ShenzhenMap", code: 4, userInfo: [NSLocalizedDescriptionKey: "下载文件只有 \(size) 字节，可能是网页或下载未完成，并非完整地图。"])
             }
             try OfflineMap.install(location)
             DispatchQueue.main.async {
@@ -1673,14 +1682,19 @@ private final class ShenzhenMapDownload: NSObject, ObservableObject, URLSessionD
                 self.completion = nil
             }
         } catch {
-            DispatchQueue.main.async { self.errorMessage = error.localizedDescription; self.downloading = false }
+            DispatchQueue.main.async {
+                self.errorMessage = "地图安装失败：" + error.localizedDescription
+                self.downloading = false
+                self.completion = nil
+            }
         }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         DispatchQueue.main.async {
             if let error = error, (error as NSError).code != NSURLErrorCancelled {
-                self.errorMessage = error.localizedDescription
+                self.errorMessage = "地图下载失败：" + error.localizedDescription
                 self.downloading = false
+                self.completion = nil
             }
             self.session?.finishTasksAndInvalidate()
             self.session = nil
