@@ -6,39 +6,43 @@ on:
   workflow_run:
     workflows: ["Build Shenzhen Offline Map"]
     types: [completed]
+permissions:
+  contents: write
+  actions: read
 jobs:
   build:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Apply uploaded V2.2.4 source
+      - name: Merge V2.2.4 GPS fixes with V2.2.5 map manager
         shell: bash
         run: |
           set -euo pipefail
-          test -s app.zip
           unzip -tq app.zip
           mkdir -p /tmp/cartrip-v224
-          unzip -q app.zip -d /tmp/cartrip-v224
-          ROOT="/tmp/cartrip-v224"
+          unzip -qo app.zip -d /tmp/cartrip-v224
+          ROOT=/tmp/cartrip-v224
           if [ ! -f "$ROOT/project.yml" ]; then
             PROJECT="$(find "$ROOT" -name project.yml -type f | head -1)"
-            test -n "$PROJECT"
             ROOT="$(dirname "$PROJECT")"
           fi
-          test -d "$ROOT/CarTripAssistant"
+          test -f "$ROOT/CarTripAssistant/App.swift"
+          git show 4dd3ec18209527006b16190a19fa398ecf75b923:CarTripAssistant/App.swift > /tmp/cartrip-base.swift
+          cp CarTripAssistant/App.swift /tmp/cartrip-v225.swift
+          git merge-file -p /tmp/cartrip-v225.swift /tmp/cartrip-base.swift "$ROOT/CarTripAssistant/App.swift" > /tmp/cartrip-merged.swift || { echo 'V2.2.4/V2.2.5 source merge conflict'; exit 1; }
           cp -R "$ROOT/CarTripAssistant/." CarTripAssistant/
-          cp "$ROOT/project.yml" project.yml
-          if [ -d "$ROOT/scripts" ]; then cp -R "$ROOT/scripts/." scripts/; fi
+          cp /tmp/cartrip-merged.swift CarTripAssistant/App.swift
           python3 - <<'PY'
           import plistlib
           p='CarTripAssistant/Info.plist'
           with open(p,'rb') as f: info=plistlib.load(f)
-          print('Source version:',info.get('CFBundleShortVersionString'))
-          if info.get('CFBundleShortVersionString')!='2.2.4':
-              raise SystemExit('Uploaded ZIP is not V2.2.4; refusing to compile old version')
+          assert info.get('CFBundleShortVersionString')=='2.2.5', 'Uploaded GPS base must be 2.2.4'
+          info['CFBundleShortVersionString']='2.2.5'
+          info['CFBundleVersion']='2205'
+          with open(p,'wb') as f: plistlib.dump(info,f)
           PY
-      - name: Bundle Shenzhen offline roads map
+      - name: Publish optional Shenzhen map separately
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -51,8 +55,10 @@ jobs:
           echo "Using Shenzhen map build run $MAP_RUN"
           gh run download "$MAP_RUN" --repo "${{ github.repository }}" --name Shenzhen-Offline-Map-MBTiles --dir map-download
           test -s map-download/Shenzhen-Roads.mbtiles
-          cp map-download/Shenzhen-Roads.mbtiles CarTripAssistant/OfflineMap.mbtiles
-          ls -lh CarTripAssistant/OfflineMap.mbtiles
+          if ! gh release view shenzhen-map-v1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release create shenzhen-map-v1 map-download/Shenzhen-Roads.mbtiles --repo "${{ github.repository }}" --title "Shenzhen Offline Map v1" --notes "Optional MBTiles download for CarTripAssistant V2.2.5+"
+          fi
+          test ! -f CarTripAssistant/OfflineMap.mbtiles
       - name: Generate app icon asset
         run: |
           python3 -m venv /tmp/cartrip-icon-venv
@@ -71,12 +77,12 @@ jobs:
           xcodebuild -project CarTripAssistant.xcodeproj -scheme CarTripAssistant -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/CarTripAssistant.app Payload/
-          zip -qry CarTripAssistant-V2.2.4-unsigned.ipa Payload
+          zip -qry CarTripAssistant-V2.2.5-unsigned.ipa Payload
       - name: Verify IPA icon assets
         run: |
           python3 - <<'PY'
           import zipfile,plistlib
-          ipa='CarTripAssistant-V2.2.4-unsigned.ipa'
+          ipa='CarTripAssistant-V2.2.5-unsigned.ipa'
           with zipfile.ZipFile(ipa) as z:
               names=z.namelist()
               info=plistlib.loads(z.read('Payload/CarTripAssistant.app/Info.plist'))
@@ -86,38 +92,25 @@ jobs:
               assert icon.get('CFBundleIconName')=='AppIcon' or icon.get('CFBundleIconFiles'), 'No primary icon metadata'
               print('Verified V2.2.4 and compiled AppIcon metadata')
           PY
-      - name: Verify embedded offline map in IPA
+      - name: Verify map excluded from IPA
         run: |
           python3 - <<'PY'
-          import io, sqlite3, tempfile, zipfile, os
-          ipa = "CarTripAssistant-V2.2.4-unsigned.ipa"
-          with zipfile.ZipFile(ipa) as z:
-              candidates = [n for n in z.namelist() if n.endswith("/OfflineMap.mbtiles")]
-              if len(candidates) != 1:
-                  raise SystemExit("ERROR: OfflineMap.mbtiles not embedded in IPA")
-              blob = z.read(candidates[0])
-              if len(blob) < 1000000:
-                  raise SystemExit("ERROR: offline map file unexpectedly small")
-              with tempfile.NamedTemporaryFile(suffix=".mbtiles") as tmp:
-                  tmp.write(blob); tmp.flush()
-                  db = sqlite3.connect(tmp.name)
-                  fmt = db.execute("SELECT value FROM metadata WHERE name='format'").fetchone()[0]
-                  count, low, high = db.execute("SELECT COUNT(*), MIN(zoom_level), MAX(zoom_level) FROM tiles").fetchone()
-                  assert fmt == "png" and count > 20000 and low <= 10 and high >= 16, (
-                      f"Expected verified Shenzhen z16 map, got {count} tiles, z{low}-{high}")
-                  print(f"Verified embedded Shenzhen offline map: {len(blob)} bytes, {count} tiles, zoom {low}-{high}")
+          import zipfile
+          with zipfile.ZipFile('CarTripAssistant-V2.2.5-unsigned.ipa') as z:
+              assert not any(n.endswith('.mbtiles') for n in z.namelist()), 'Map unexpectedly bundled'
+          print('Verified lightweight IPA without map tiles')
           PY
-      - name: Package V2.2.1 source archive
+      - name: Package V2.2.5 source archive
         run: |
-          cp app.zip "V2.2.4-行程助手-源码.zip"
-          unzip -t "V2.2.4-行程助手-源码.zip" | tail -1
+          zip -qry "V2.2.5-行程助手-源码.zip" CarTripAssistant scripts project.yml README.md
+          unzip -t "V2.2.5-行程助手-源码.zip" | tail -1
       - uses: actions/upload-artifact@v4
         with:
-          name: V2.2.4-行程助手-源码
-          path: V2.2.4-行程助手-源码.zip
+          name: V2.2.5-行程助手-源码
+          path: V2.2.5-行程助手-源码.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: CarTripAssistant-V2.2.4-unsigned-IPA
-          path: CarTripAssistant-V2.2.4-unsigned.ipa
+          name: CarTripAssistant-V2.2.5-unsigned-IPA
+          path: CarTripAssistant-V2.2.5-unsigned.ipa
           if-no-files-found: error
