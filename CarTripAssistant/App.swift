@@ -163,6 +163,7 @@ struct TrackPoint: Codable {
     @Published var gpsAccuracy: Double?
     @Published var gpsSpeed: Double?
     @Published var gpsLastUpdate: Date?
+    @Published private(set) var latestGPSLocation: CLLocation?
     @Published var gpsGapCount = 0
     @Published var rejectedGPSCount = 0
     @Published var gpsErrorCount = 0
@@ -403,6 +404,7 @@ struct TrackPoint: Codable {
             gpsAccuracy = point.horizontalAccuracy
             gpsSpeed = point.speed >= 0 ? point.speed * 3.6 : nil
             gpsLastUpdate = point.timestamp
+            latestGPSLocation = point
             if let last = previous {
                 let seconds = point.timestamp.timeIntervalSince(last.timestamp)
                 guard seconds > 0 else { continue }
@@ -1500,14 +1502,16 @@ private struct RouteDetail: View {
     private var routeGPSCheck: String {
         guard let saved = shift.points.last else { return "轨迹诊断：尚无保存的 GPS 点" }
         let age = max(0, Int(Date().timeIntervalSince(saved.date)))
-        let savedLocation = CLLocation(latitude: saved.lat, longitude: saved.lon)
-        guard let live = store.location.location,
+        // Compare the same Core Location feed used by TripStore with the
+        // stored endpoint. MKMapView's blue dot has its own location pipeline.
+        guard let live = store.latestGPSLocation,
               live.horizontalAccuracy > 0,
               abs(live.timestamp.timeIntervalSinceNow) <= 30 else {
-            return "轨迹诊断：最后轨迹点距今\\(age)秒 · 当前无新鲜实时定位"
+            return "轨迹诊断：终点距今\\(age)秒 · 暂无新鲜的记录器 GPS"
         }
+        let savedLocation = CLLocation(latitude: saved.lat, longitude: saved.lon)
         let separation = Int(live.distance(from: savedLocation).rounded())
-        return "轨迹诊断：实时定位与轨迹终点相差\\(separation)米 · 终点距今\\(age)秒 · 实时精度±\\(Int(live.horizontalAccuracy))米"
+        return "轨迹诊断：记录器定位与轨迹终点相差\\(separation)米 · 终点距今\\(age)秒 · 精度±\\(Int(live.horizontalAccuracy))米"
     }
     @State private var importMap = false
     @State private var mapRevision = 0
