@@ -202,7 +202,7 @@ struct TrackPoint: Codable {
         }
         location.delegate = self
         location.desiredAccuracy = kCLLocationAccuracyBest
-        location.distanceFilter = 5
+        location.distanceFilter = kCLDistanceFilterNone
         location.pausesLocationUpdatesAutomatically = false
         location.allowsBackgroundLocationUpdates = true
         if active != nil {
@@ -351,16 +351,13 @@ struct TrackPoint: Codable {
         guard let last = lastSavedLocation else { return true }
         let meters = point.distance(from: last)
         let elapsed = point.timestamp.timeIntervalSince(last.timestamp)
-        // Record road bends and empty-driving routes without waiting 100 m.
-        // GPS jitter alone must not generate dense stationary points.
-        if elapsed >= 15 { return true }
-        if meters >= max(12, min(25, point.horizontalAccuracy)) { return true }
-        // 转弯时增加轨迹密度，避免道路拐角被连成直线。
-        if meters >= 20, point.course >= 0, let old = lastSavedHeading {
-            let diff = abs(point.course - old)
-            if min(diff, 360 - diff) >= 30 { return true }
-        }
-        return false
+        guard elapsed > 0 else { return false }
+        // Record near-1-second real GPS fixes while driving, not fabricated points.
+        // Core Location decides the callback frequency.
+        let moving = point.speed >= 1.0 || (previous?.speed ?? -1) >= 1.0
+        if moving { return elapsed >= 1 && meters >= 1.5 }
+        // Do not draw stationary GPS jitter as a road.
+        return elapsed >= 30 && meters >= max(15, point.horizontalAccuracy * 1.5)
     }
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
