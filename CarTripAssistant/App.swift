@@ -1347,10 +1347,25 @@ private struct RouteDetail: View {
     @State private var mapRevision = 0
     @StateObject private var mapDownload = ShenzhenMapDownload()
     @State private var mapError: String?
+    @State private var replayIndex = 0
+    @State private var replayRunning = false
+    @State private var replaySpeed = 1
+    private let replayTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
+    private var replayCount: Int { shift.points.count }
+    private var replayShift: Shift {
+        var partial = shift
+        partial.points = Array(shift.points.prefix(min(replayCount, max(1, replayIndex + 1))))
+        return partial
+    }
     var body: some View {
         VStack(spacing: 0) {
-            TripRouteMap(shift: shift)
+            TripRouteMap(shift: replayIndex == 0 && !replayRunning ? shift : replayShift)
                 .id(mapRevision)
+                .onReceive(replayTimer) { _ in
+                    guard replayRunning else { return }
+                    replayIndex = min(max(0, replayCount - 1), replayIndex + replaySpeed * 4)
+                    if replayIndex >= replayCount - 1 { replayRunning = false }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack {
                 Text(OfflineMap.file == nil ? "在线地图 · 深圳离线包未下载" : "深圳离线道路图已安装 · © OpenStreetMap")
@@ -1377,6 +1392,28 @@ private struct RouteDetail: View {
             }
             if let message = mapDownload.errorMessage {
                 Text(message).font(.caption).foregroundStyle(.red).padding(.horizontal, 15)
+            }
+            if replayCount > 1 {
+                VStack(spacing: 7) {
+                    HStack {
+                        Button(replayRunning ? "暂停回放" : "播放轨迹") {
+                            if replayIndex >= replayCount - 1 { replayIndex = 0 }
+                            replayRunning.toggle()
+                        }.buttonStyle(.borderedProminent)
+                        Button("重置") { replayRunning = false; replayIndex = 0 }
+                            .buttonStyle(.bordered)
+                        Spacer()
+                        Picker("速度", selection: $replaySpeed) {
+                            Text("1×").tag(1)
+                            Text("2×").tag(2)
+                            Text("5×").tag(5)
+                        }.pickerStyle(.menu)
+                    }
+                    Slider(value: Binding(get: { Double(replayIndex) }, set: { replayIndex = Int($0); replayRunning = false }),
+                           in: 0...Double(replayCount - 1), step: 1)
+                    Text(replayIndex == 0 && !replayRunning ? "完整路线" : "回放：\(shift.points[min(replayIndex, replayCount - 1)].date.formatted(date: .omitted, time: .standard))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.padding(.horizontal, 15).padding(.vertical, 8)
             }
             HStack(spacing: 18) {
                 Label("全天轨迹", systemImage: "line.diagonal").foregroundStyle(.blue)
