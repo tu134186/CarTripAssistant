@@ -1549,11 +1549,11 @@ private struct RouteDetail: View {
                 Text(String(format: "总里程 %.2f km  ·  载客 %.2f km", shift.kilometers, shift.passengerKM))
                     .font(.headline)
                 Text("\(shift.completedOrders) 单 · \(shift.points.count) 个轨迹点")
+                    .font(.caption).foregroundStyle(.secondary)
                 if shift.points.count < 2 {
                     Text("当前仅记录到 \(shift.points.count) 个 GPS 点：红色图钉是行程起点，不代表实时位置；地图蓝点才是手机当前定位。请等待 GPS 更新。")
                         .font(.caption).foregroundStyle(.orange)
                 }
-                    .font(.caption).foregroundStyle(.secondary)
                 Text("蓝线是记录的 GPS 轨迹，绿线按乘客上下车时间标记。定位断点、步行点和漂移可能影响地图及里程。")
                     .font(.caption).foregroundStyle(.secondary)
             }
