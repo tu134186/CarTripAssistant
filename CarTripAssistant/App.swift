@@ -565,13 +565,13 @@ struct TrackPoint: Codable {
               (try? data.write(to: url, options: .atomic)) != nil else { return nil }
         return url
     }
-    func exportHistoryCSV() -> URL? {
+    func exportHistoryCSV(_ selected: [Shift]? = nil) -> URL? {
         func cell(_ value: String) -> String {
             "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         }
         let formatter = ISO8601DateFormatter()
         var lines = ["开始时间,结束时间,总里程km,载客里程km,空驶里程km,休息里程km,完成订单,流水元,备注"]
-        for shift in history.sorted(by: { $0.started < $1.started }) {
+        for shift in (selected ?? history).sorted(by: { $0.started < $1.started }) {
             let columns = [
                 formatter.string(from: shift.started),
                 shift.ended.map { formatter.string(from: $0) } ?? "",
@@ -1327,6 +1327,17 @@ struct Dashboard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(18)
                     .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
+            }
+            if !filteredHistory.isEmpty {
+                Button {
+                    gpxExport = store.exportHistoryCSV(filteredHistory)
+                } label: {
+                    Label("导出当前筛选结果 CSV", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
             }
             ForEach(filteredHistory) { item in
                 HStack(spacing: 12) {
