@@ -163,6 +163,9 @@ struct TrackPoint: Codable {
     @Published var gpsAccuracy: Double?
     @Published var gpsSpeed: Double?
     @Published var gpsLastUpdate: Date?
+    @Published var gpsGapCount = 0
+    @Published var rejectedGPSCount = 0
+    @Published var gpsErrorCount = 0
     private let location = CLLocationManager()
     private let motion = CMMotionActivityManager()
     private var previous: CLLocation?
@@ -352,11 +355,17 @@ struct TrackPoint: Codable {
             if active != nil { manager.startUpdatingLocation() }
         }
     }
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) { gpsStatus = "定位异常：" + error.localizedDescription }
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        gpsErrorCount += 1
+        gpsStatus = "定位异常：" + error.localizedDescription
+    }
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard var shift = active else { return }
         for point in locations {
-            guard point.horizontalAccuracy > 0, point.horizontalAccuracy <= 35, abs(point.timestamp.timeIntervalSinceNow) < 30 else { continue }
+            guard point.horizontalAccuracy > 0, point.horizontalAccuracy <= 35, abs(point.timestamp.timeIntervalSinceNow) < 30 else {
+                rejectedGPSCount += 1
+                continue
+            }
             gpsAccuracy = point.horizontalAccuracy
             gpsSpeed = point.speed >= 0 ? point.speed * 3.6 : nil
             gpsLastUpdate = point.timestamp
@@ -409,6 +418,7 @@ struct TrackPoint: Codable {
             // Keep the previous sample until AFTER segment-gap detection.
             // This applies equally to passenger trips and empty driving.
             let gpsGap = previous.map { point.timestamp.timeIntervalSince($0.timestamp) > 120 } ?? false
+            if gpsGap { gpsGapCount += 1 }
             if (breakActive || walking || gpsGap) { needsNewTrackSegment = true }
             if !breakActive && !walking && (needsNewTrackSegment || shouldSaveTrackPoint(point)) {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
@@ -455,6 +465,9 @@ struct TrackPoint: Codable {
             "activeShift": active != nil,
             "activePoints": active?.points.count ?? 0,
             "historyCount": history.count,
+            "gpsGapCount": gpsGapCount,
+            "rejectedGPSCount": rejectedGPSCount,
+            "gpsErrorCount": gpsErrorCount,
             "locationAuthorization": location.authorizationStatus.rawValue,
             "backgroundLocationEnabled": location.allowsBackgroundLocationUpdates
         ]
@@ -851,6 +864,9 @@ struct Dashboard: View {
                     .font(.headline).foregroundStyle(.orange)
                 toolRow("历史记录", "\(store.history.count) 条")
                 toolRow("最近定位距今", store.gpsLastUpdate.map { "\(Int(max(0, Date().timeIntervalSince($0)))) 秒" } ?? "暂无")
+                toolRow("GPS 超时断点", "\(store.gpsGapCount) 次")
+                toolRow("GPS 无效点", "\(store.rejectedGPSCount) 个")
+                toolRow("定位错误", "\(store.gpsErrorCount) 次")
                 Button {
                     gpxExport = store.exportDiagnostics()
                 } label: {
