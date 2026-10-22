@@ -1523,6 +1523,22 @@ private struct RouteDetail: View {
         let separation = Int(live.distance(from: savedLocation).rounded())
         return "轨迹诊断：记录器定位与轨迹终点相差\\(separation)米 · 终点距今\\(age)秒 · 精度±\\(Int(live.horizontalAccuracy))米"
     }
+    private var routeLengthCheck: String {
+        let points = shift.points
+        guard points.count > 1 else { return "轨迹路径：有效点不足，无法估算" }
+        var meters = 0.0
+        for i in 1..<points.count {
+            let a = points[i - 1], b = points[i]
+            let seconds = b.date.timeIntervalSince(a.date)
+            if b.segmentStart || seconds <= 0 || seconds > 120 { continue }
+            let start = CLLocation(latitude: a.lat, longitude: a.lon)
+            let end = CLLocation(latitude: b.lat, longitude: b.lon)
+            let distance = end.distance(from: start)
+            if distance / seconds >= 50 { continue }
+            meters += distance
+        }
+        return String(format: "GPS轨迹折线约%.2f公里 · 已计入里程%.2f公里 · 轨迹点%d个（折线包含定位漂移，仅用于排查）", meters / 1000, shift.kilometers, points.count)
+    }
     @State private var importMap = false
     @State private var mapRevision = 0
     @StateObject private var mapDownload = ShenzhenMapDownload()
@@ -1595,6 +1611,12 @@ private struct RouteDetail: View {
                         .font(.caption.bold())
                 }.padding(.horizontal, 15)
             }
+            Text(routeLengthCheck)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 15)
+                .padding(.top, 6)
             Text(routeGPSCheck)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
