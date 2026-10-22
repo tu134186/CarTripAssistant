@@ -51,12 +51,17 @@ jobs:
           else
             MAP_RUN=$(gh run list --repo "${{ github.repository }}" --workflow shenzhen-map.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           fi
-          test -n "$MAP_RUN"
-          echo "Using Shenzhen map build run $MAP_RUN"
-          gh run download "$MAP_RUN" --repo "${{ github.repository }}" --name Shenzhen-Offline-Map-MBTiles --dir map-download
-          test -s map-download/Shenzhen-Roads.mbtiles
-          if ! gh release view shenzhen-map-v1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release create shenzhen-map-v1 map-download/Shenzhen-Roads.mbtiles --repo "${{ github.repository }}" --title "Shenzhen Offline Map v1" --notes "Optional MBTiles download for CarTripAssistant V2.2.5+"
+          if [ -n "$MAP_RUN" ]; then
+            echo "Optional Shenzhen map run: $MAP_RUN"
+            if gh run download "$MAP_RUN" --repo "${{ github.repository }}" --name Shenzhen-Offline-Map-MBTiles --dir map-download && test -s map-download/Shenzhen-Roads.mbtiles; then
+              if ! gh release view shenzhen-map-v1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+                gh release create shenzhen-map-v1 map-download/Shenzhen-Roads.mbtiles --repo "${{ github.repository }}" --title "Shenzhen Offline Map v1" --notes "Optional MBTiles download for CarTripAssistant V2.2.5+" || echo "Optional map release skipped"
+              fi
+            else
+              echo "Optional Shenzhen map unavailable; continue IPA build"
+            fi
+          else
+            echo "No optional Shenzhen map build; continue IPA build"
           fi
           test ! -f CarTripAssistant/OfflineMap.mbtiles
       - name: Generate app icon asset
