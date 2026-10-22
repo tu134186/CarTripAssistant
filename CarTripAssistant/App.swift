@@ -1414,11 +1414,13 @@ private final class RouteOverlay: MKPolyline {
 private struct TripRouteMap: UIViewRepresentable {
     let shift: Shift
     var playbackCoordinate: CLLocationCoordinate2D? = nil
+    var satelliteMode: Bool = false
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
         map.delegate = context.coordinator
         map.overrideUserInterfaceStyle = .dark
         map.showsCompass = true
+        map.mapType = satelliteMode ? .hybrid : .standard
         map.showsUserLocation = true // Blue dot: live Core Location, distinct from stored trip start/end pins.
         map.isRotateEnabled = false
         let shenzhen = CLLocationCoordinate2D(latitude: 22.60, longitude: 114.05)
@@ -1426,6 +1428,8 @@ private struct TripRouteMap: UIViewRepresentable {
         return map
     }
     func updateUIView(_ map: MKMapView, context: Context) {
+        let desiredMapType: MKMapType = satelliteMode ? .hybrid : .standard
+        if map.mapType != desiredMapType { map.mapType = desiredMapType }
         // Passenger boundaries can change without a new GPS point; invalidate
         // the rendered route whenever pickup/dropoff timestamps change.
         let rideSignature = shift.rides.map {
@@ -1673,6 +1677,7 @@ private struct RouteDetail: View {
     @State private var mapError: String?
     @State private var replayRunning = false
     @State private var replaySpeed = 1
+    @State private var satelliteMode = false
     // Replay uses recorded timestamps, not the number of GPS points.
     // A missing GPS second is never presented as a genuine recorded fix.
     @State private var replayElapsed: TimeInterval = 0
@@ -1721,7 +1726,8 @@ private struct RouteDetail: View {
     var body: some View {
         VStack(spacing: 0) {
             TripRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
-                         playbackCoordinate: playbackCoordinate)
+                         playbackCoordinate: playbackCoordinate,
+                         satelliteMode: satelliteMode)
                 .id(mapRevision)
                 .onReceive(replayTimer) { _ in
                     guard replayRunning else { return }
@@ -1730,6 +1736,8 @@ private struct RouteDetail: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack {
+                Button(satelliteMode ? "标准地图" : "卫星地图") { satelliteMode.toggle() }
+                    .font(.caption.bold())
                 Text(OfflineMap.file == nil ? "在线地图 · 深圳离线包未下载" : "深圳离线道路图已安装 · © OpenStreetMap")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
