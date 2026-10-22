@@ -432,7 +432,7 @@ struct TrackPoint: Codable {
         // Never silently overwrite existing data: keep an independent timestamped snapshot.
         if let current = try? Data(contentsOf: file) {
             let stamp = Int(Date().timeIntervalSince1970)
-            let archive = file.deletingLastPathComponent().appendingPathComponent("trips-before-restore-\\(stamp).json")
+            let archive = file.deletingLastPathComponent().appendingPathComponent("trips-before-restore-\(stamp).json")
             try current.write(to: archive, options: .atomic)
         }
         try data.write(to: file, options: .atomic)
@@ -629,7 +629,7 @@ struct Dashboard: View {
                     try FileManager.default.copyItem(at: url, to: temp)
                     pendingRestore = temp
                     confirmRestore = true
-                } catch { restoreNotice = "读取备份失败：\\(error.localizedDescription)" }
+                } catch { restoreNotice = "读取备份失败：\(error.localizedDescription)" }
             case .failure(let error): restoreNotice = error.localizedDescription
             }
         }
@@ -637,7 +637,7 @@ struct Dashboard: View {
             Button("确认恢复", role: .destructive) {
                 guard let url = pendingRestore else { return }
                 do { try store.restoreArchive(url); restoreNotice = "恢复成功，原有数据已另存备份" }
-                catch { restoreNotice = "恢复失败：\\(error.localizedDescription)" }
+                catch { restoreNotice = "恢复失败：\(error.localizedDescription)" }
                 pendingRestore = nil
             }
         }
@@ -789,7 +789,7 @@ struct Dashboard: View {
                 toolRow("本周里程", String(format: "%.1f km", week.reduce(0) { $0 + $1.kilometers }))
                 toolRow("本月里程", String(format: "%.1f km", month.reduce(0) { $0 + $1.kilometers }))
                 toolRow("今年里程", String(format: "%.1f km", year.reduce(0) { $0 + $1.kilometers }))
-                toolRow("累计订单", "\\(shifts.reduce(0) { $0 + $1.rides.count }) 单")
+                toolRow("累计订单", "\(shifts.reduce(0) { $0 + $1.rides.count }) 单")
             }
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             VStack(alignment: .leading, spacing: 12) {
@@ -849,8 +849,8 @@ struct Dashboard: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("行程诊断", systemImage: "waveform.path.ecg")
                     .font(.headline).foregroundStyle(.orange)
-                toolRow("历史记录", "\\(store.history.count) 条")
-                toolRow("最近定位距今", store.gpsLastUpdate.map { "\\(Int(max(0, Date().timeIntervalSince($0)))) 秒" } ?? "暂无")
+                toolRow("历史记录", "\(store.history.count) 条")
+                toolRow("最近定位距今", store.gpsLastUpdate.map { "\(Int(max(0, Date().timeIntervalSince($0)))) 秒" } ?? "暂无")
                 Button {
                     gpxExport = store.exportDiagnostics()
                 } label: {
