@@ -413,7 +413,7 @@ struct TrackPoint: Codable {
                 let manualBreakActive = shift.breaks.last.map { $0.ended == nil } ?? false
                 // A long GPS outage does not prove the route between samples.
                 // Skip the gap instead of inventing straight-line vehicle mileage.
-                if seconds <= 120 && meters > max(8, min(18, (last.horizontalAccuracy + point.horizontalAccuracy) * 0.5)) && speed >= 1.5 && speed < 50 && !walking && !manualBreakActive {
+                if seconds <= 120 && meters > max(8, min(18, (last.horizontalAccuracy + point.horizontalAccuracy) * 0.5)) && speed >= 0.8 && speed < 50 && !manualBreakActive {
                     let km = meters / 1000
                     shift.kilometers += km
                     if let i = shift.rides.indices.last, shift.rides[i].ended == nil {
@@ -453,7 +453,7 @@ struct TrackPoint: Codable {
             // This applies equally to passenger trips and empty driving.
             let gpsGap = previous.map { point.timestamp.timeIntervalSince($0.timestamp) > 120 } ?? false
             if gpsGap { gpsGapCount += 1 }
-            if (breakActive || walking || gpsGap) { needsNewTrackSegment = true }
+            if (breakActive || gpsGap) { needsNewTrackSegment = true }
             // Preserve valid GPS fixes even when walking: motion classification is not
             // reliable enough to hide the driver's location on the map. Walking and
             // manual breaks are still excluded from vehicle mileage above.
