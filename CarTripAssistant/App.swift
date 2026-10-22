@@ -1456,7 +1456,15 @@ private struct ShareJourneyCard: View {
     }
 }
 private struct RouteDetail: View {
-    let shift: Shift
+    @EnvironmentObject private var store: TripStore
+    private let initialShift: Shift
+    init(shift: Shift) { self.initialShift = shift }
+    // NavigationLink captures a value snapshot. Read the current published
+    // shift on every render so GPS points keep updating while this page stays open.
+    private var shift: Shift {
+        if let live = store.active, live.id == initialShift.id { return live }
+        return store.history.first(where: { $0.id == initialShift.id }) ?? initialShift
+    }
     @State private var importMap = false
     @State private var mapRevision = 0
     @StateObject private var mapDownload = ShenzhenMapDownload()
