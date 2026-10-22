@@ -530,7 +530,7 @@ struct TrackPoint: Codable {
             lines.append(columns.map(cell).joined(separator: ","))
         }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("CarTripAssistant-History.csv")
-        guard let data = ("\\u{FEFF}" + lines.joined(separator: "\\r\\n")).data(using: .utf8),
+        guard let data = ("\u{FEFF}" + lines.joined(separator: "\r\n")).data(using: .utf8),
               (try? data.write(to: url, options: .atomic)) != nil else { return nil }
         return url
     }
