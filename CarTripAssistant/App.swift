@@ -1661,11 +1661,11 @@ private struct RouteDetail: View {
         guard let live = store.latestGPSLocation,
               live.horizontalAccuracy > 0,
               abs(live.timestamp.timeIntervalSinceNow) <= 30 else {
-            return "轨迹诊断：终点距今\\(age)秒 · 暂无新鲜的记录器 GPS"
+            return "轨迹诊断：终点距今\(age)秒 · 暂无新鲜的记录器 GPS"
         }
         let savedLocation = CLLocation(latitude: saved.lat, longitude: saved.lon)
         let separation = Int(live.distance(from: savedLocation).rounded())
-        return "轨迹诊断：记录器定位与轨迹终点相差\\(separation)米 · 终点距今\\(age)秒 · 精度±\\(Int(live.horizontalAccuracy))米"
+        return "轨迹诊断：记录器定位与轨迹终点相差\(separation)米 · 终点距今\(age)秒 · 精度±\(Int(live.horizontalAccuracy))米"
     }
     private var routeLengthCheck: String {
         let points = shift.points
@@ -1685,6 +1685,17 @@ private struct RouteDetail: View {
             points[$0].date.timeIntervalSince(points[$0 - 1].date) > 8
         }.count
         return String(format: "连续GPS折线约%.2f公里 · 已计入%.2f公里 · %d点 · 定位间隔>8秒共%d次（折线含漂移，不是实际里程）", meters / 1000, shift.kilometers, points.count, gaps)
+    }
+    private var routeQualityCheck: String {
+        let points = shift.points
+        guard !points.isEmpty else { return "轨迹质量：尚无定位点" }
+        let accurate = points.filter { $0.accuracy > 0 && $0.accuracy <= 20 }.count
+        let weak = points.filter { $0.accuracy > 35 }.count
+        let segments = points.filter { $0.segmentStart }.count
+        let gaps = zip(points, points.dropFirst()).filter {
+            $1.date.timeIntervalSince($0.date) > 8
+        }.count
+        return "轨迹质量：精度≤20米 \\(accurate)/\\(points.count)点 · 精度>35米 \\(weak)点 · 分段 \\(segments)次 · 间隔>8秒 \\(gaps)次"
     }
     @State private var importMap = false
     @State private var mapRevision = 0
@@ -1789,6 +1800,11 @@ private struct RouteDetail: View {
                         .font(.caption.bold())
                 }.padding(.horizontal, 15)
             }
+            Text(routeQualityCheck)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 15)
             Text(routeLengthCheck)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
