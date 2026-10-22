@@ -446,7 +446,10 @@ struct TrackPoint: Codable {
             let gpsGap = previous.map { point.timestamp.timeIntervalSince($0.timestamp) > 120 } ?? false
             if gpsGap { gpsGapCount += 1 }
             if (breakActive || walking || gpsGap) { needsNewTrackSegment = true }
-            if !breakActive && !walking && (needsNewTrackSegment || shouldSaveTrackPoint(point)) {
+            // Preserve valid GPS fixes even when walking: motion classification is not
+            // reliable enough to hide the driver's location on the map. Walking and
+            // manual breaks are still excluded from vehicle mileage above.
+            if !breakActive && (needsNewTrackSegment || shouldSaveTrackPoint(point)) {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                               date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed,
                                               segmentStart: needsNewTrackSegment))
@@ -457,7 +460,7 @@ struct TrackPoint: Codable {
             previous = point
         }
         active = shift
-        gpsStatus = "GPS 记录中"
+        gpsStatus = shift.points.isEmpty ? "等待有效轨迹点（精度需≤35米）" : "GPS 记录中 · \(shift.points.count)点"
         if Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
     }
     func restoreArchive(_ url: URL) throws {
