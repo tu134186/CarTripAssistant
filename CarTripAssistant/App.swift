@@ -166,6 +166,9 @@ struct TrackPoint: Codable {
     @Published var gpsGapCount = 0
     @Published var rejectedGPSCount = 0
     @Published var gpsErrorCount = 0
+    @Published var gpsPauseCount = 0
+    @Published var gpsResumeCount = 0
+    @Published var gpsAuthorization = "未知"
     @Published var parkingThresholdSeconds: Double = max(30, UserDefaults.standard.double(forKey: "parkingThresholdSeconds") == 0 ? 60 : UserDefaults.standard.double(forKey: "parkingThresholdSeconds")) {
         didSet { UserDefaults.standard.set(parkingThresholdSeconds, forKey: "parkingThresholdSeconds") }
     }
@@ -354,9 +357,29 @@ struct TrackPoint: Codable {
         return false
     }
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorizedAlways: gpsAuthorization = "始终允许"
+        case .authorizedWhenInUse: gpsAuthorization = "使用期间（后台可能中断）"
+        case .denied: gpsAuthorization = "已拒绝"
+        case .restricted: gpsAuthorization = "受系统限制"
+        case .notDetermined: gpsAuthorization = "尚未授权"
+        @unknown default: gpsAuthorization = "未知"
+        }
         if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
             if active != nil { manager.startUpdatingLocation() }
+        } else if active != nil {
+            gpsStatus = "定位权限不足，请检查系统设置"
         }
+    }
+    func locationManagerDidPauseLocationUpdates(_ manager: CLLocationManager) {
+        gpsPauseCount += 1
+        needsNewTrackSegment = true
+        gpsStatus = "系统暂停定位"
+    }
+    func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager) {
+        gpsResumeCount += 1
+        needsNewTrackSegment = true
+        gpsStatus = "系统恢复定位"
     }
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         gpsErrorCount += 1
@@ -438,6 +461,9 @@ struct TrackPoint: Codable {
         if Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
     }
     func restoreArchive(_ url: URL) throws {
+        guard active == nil else {
+            throw NSError(domain: "CarTripAssistant", code: 409, userInfo: [NSLocalizedDescriptionKey: "正在出车，必须先收车才能恢复备份"])
+        }
         let granted = url.startAccessingSecurityScopedResource()
         defer { if granted { url.stopAccessingSecurityScopedResource() } }
         let data = try Data(contentsOf: url)
@@ -471,6 +497,9 @@ struct TrackPoint: Codable {
             "gpsGapCount": gpsGapCount,
             "rejectedGPSCount": rejectedGPSCount,
             "gpsErrorCount": gpsErrorCount,
+            "gpsPauseCount": gpsPauseCount,
+            "gpsResumeCount": gpsResumeCount,
+            "gpsAuthorization": gpsAuthorization,
             "locationAuthorization": location.authorizationStatus.rawValue,
             "backgroundLocationEnabled": location.allowsBackgroundLocationUpdates
         ]
@@ -878,6 +907,8 @@ struct Dashboard: View {
                 toolRow("GPS 超时断点", "\(store.gpsGapCount) 次")
                 toolRow("GPS 无效点", "\(store.rejectedGPSCount) 个")
                 toolRow("定位错误", "\(store.gpsErrorCount) 次")
+                toolRow("定位权限", store.gpsAuthorization)
+                toolRow("系统暂停 / 恢复", "\(store.gpsPauseCount) / \(store.gpsResumeCount) 次")
                 Button {
                     gpxExport = store.exportDiagnostics()
                 } label: {
