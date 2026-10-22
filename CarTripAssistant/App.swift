@@ -597,22 +597,25 @@ struct TrackPoint: Codable {
         catch { return nil }
     }
     func exportGPX(_ shift: Shift) -> URL? {
-        func escape(_ value: String) -> String {
-            value.replacingOccurrences(of: "&", with: "&amp;")
-                .replacingOccurrences(of: "<", with: "&lt;")
-        }
         let stamp = ISO8601DateFormatter()
         let name = "CarTrip-\(shift.started.formatted(.dateTime.year().month().day()))"
-        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<gpx version=\"1.1\" creator=\"CarTripAssistant\" xmlns=\"http://www.topografix.com/GPX/1/1\">\\n<trk><name>\(escape(name))</name><trkseg>\\n"
+        let escapedName = name.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<gpx version=\"1.1\" creator=\"CarTripAssistant\" xmlns=\"http://www.topografix.com/GPX/1/1\">\\n<trk><name>\(escapedName)</name>\\n"
         var priorDate: Date?
+        var segmentOpen = false
         for p in shift.points where (-90...90).contains(p.lat) && (-180...180).contains(p.lon) {
-            if p.segmentStart || (priorDate.map { p.date.timeIntervalSince($0) > 120 } ?? false) {
-                xml += "</trkseg><trkseg>\\n"
+            let newSegment = p.segmentStart || (priorDate.map { p.date.timeIntervalSince($0) > 120 } ?? false)
+            if !segmentOpen || newSegment {
+                if segmentOpen { xml += "</trkseg>\\n" }
+                xml += "<trkseg>\\n"
+                segmentOpen = true
             }
             priorDate = p.date
             xml += "<trkpt lat=\"\(p.lat)\" lon=\"\(p.lon)\"><time>\(stamp.string(from: p.date))</time></trkpt>\\n"
         }
-        xml += "</trkseg></trk></gpx>"
+        if segmentOpen { xml += "</trkseg>\\n" }
+        xml += "</trk></gpx>"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(shift.id.uuidString).gpx")
         do { try xml.write(to: url, atomically: true, encoding: .utf8); return url }
         catch { return nil }
