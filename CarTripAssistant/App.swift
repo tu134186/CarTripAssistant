@@ -420,6 +420,10 @@ struct TrackPoint: Codable {
                 if manualBreakActive || seconds > 120 || speed >= 50 {
                     distanceAnchor = point
                 }
+                if let anchor = distanceAnchor,
+                   point.timestamp.timeIntervalSince(anchor.timestamp) > 120 {
+                    distanceAnchor = last
+                }
                 if distanceAnchor == nil { distanceAnchor = last }
                 let anchor = distanceAnchor ?? last
                 let anchorSeconds = point.timestamp.timeIntervalSince(anchor.timestamp)
