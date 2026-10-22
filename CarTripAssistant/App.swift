@@ -687,6 +687,8 @@ struct Dashboard: View {
     @State private var revenue = ""
     @State private var notes = ""
     @State private var showFinish = false
+    @State private var historySearch = ""
+    @State private var historyPeriod = 0
     @State private var detailShift: Shift?
     @State private var showDiscard = false
     @State private var deletionTarget: UUID?
@@ -1267,6 +1269,43 @@ struct Dashboard: View {
                 Text("\(store.history.count) 条记录")
                     .font(.caption).foregroundStyle(Cockpit.muted)
             }
+            HStack(spacing: 10) {
+                TextField("搜索日期、备注、流水", text: $historySearch)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+                Picker("时间", selection: $historyPeriod) {
+                    Text("全部").tag(0)
+                    Text("本周").tag(1)
+                    Text("本月").tag(2)
+                    Text("今年").tag(3)
+                }.pickerStyle(.menu)
+            }
+            let filteredHistory = store.history.filter { item in
+                let calendar = Calendar.current
+                let periodMatches: Bool
+                switch historyPeriod {
+                case 1: periodMatches = calendar.isDate(item.started, equalTo: Date(), toGranularity: .weekOfYear)
+                case 2: periodMatches = calendar.isDate(item.started, equalTo: Date(), toGranularity: .month)
+                case 3: periodMatches = calendar.isDate(item.started, equalTo: Date(), toGranularity: .year)
+                default: periodMatches = true
+                }
+                let query = historySearch.trimmingCharacters(in: .whitespacesAndNewlines)
+                let searchMatches = query.isEmpty ||
+                    item.started.formatted(date: .numeric, time: .omitted).localizedCaseInsensitiveContains(query) ||
+                    item.notes.localizedCaseInsensitiveContains(query) ||
+                    item.revenue.localizedCaseInsensitiveContains(query)
+                return periodMatches && searchMatches
+            }
+            if !store.history.isEmpty {
+                HStack {
+                    Text("筛选结果：\\(filteredHistory.count) 条")
+                    Spacer()
+                    Text(String(format: "合计 %.1f km", filteredHistory.reduce(0) { $0 + $1.kilometers }))
+                }.font(.caption).foregroundStyle(Cockpit.muted)
+            }
+            if !store.history.isEmpty && filteredHistory.isEmpty {
+                Text("没有符合条件的历史行程").font(.caption).foregroundStyle(Cockpit.muted)
+            }
             if store.history.isEmpty {
                 Text("还没有历史记录，结束出车后会自动保存在这里。")
                     .font(.subheadline).foregroundStyle(Cockpit.muted)
@@ -1274,7 +1313,7 @@ struct Dashboard: View {
                     .padding(18)
                     .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
             }
-            ForEach(store.history) { item in
+            ForEach(filteredHistory) { item in
                 HStack(spacing: 12) {
                     Button { detailShift = item } label: {
                     VStack(alignment: .leading, spacing: 7) {
