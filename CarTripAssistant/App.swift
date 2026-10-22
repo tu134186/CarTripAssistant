@@ -835,6 +835,15 @@ struct Dashboard: View {
                 toolRow("本月里程", String(format: "%.1f km", month.reduce(0) { $0 + $1.kilometers }))
                 toolRow("今年里程", String(format: "%.1f km", year.reduce(0) { $0 + $1.kilometers }))
                 toolRow("累计订单", "\(shifts.reduce(0) { $0 + $1.rides.count }) 单")
+                let totalSeconds = shifts.reduce(0.0) { $0 + max(0, ($1.ended ?? Date()).timeIntervalSince($1.started)) }
+                let totalHours = Int(totalSeconds / 3600)
+                let totalMinutes = Int(totalSeconds.truncatingRemainder(dividingBy: 3600) / 60)
+                toolRow("累计出车时长", "\(totalHours) 小时 \(totalMinutes) 分钟")
+                let monthSeconds = month.reduce(0.0) { $0 + max(0, ($1.ended ?? Date()).timeIntervalSince($1.started)) }
+                toolRow("本月出车时长", String(format: "%.1f 小时", monthSeconds / 3600))
+                let monthRevenue = month.compactMap { Double($0.revenue.trimmingCharacters(in: .whitespacesAndNewlines)) }.reduce(0, +)
+                toolRow("本月已录入流水", String(format: "¥%.2f", monthRevenue))
+                toolRow("本月平均每小时流水", monthSeconds > 0 ? String(format: "¥%.1f", monthRevenue * 3600 / monthSeconds) : "暂无")
             }
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             VStack(alignment: .leading, spacing: 12) {
