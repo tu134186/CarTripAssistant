@@ -398,7 +398,8 @@ struct TrackPoint: Codable {
             // Never allow that older coordinate to become the new trip's start pin.
             guard point.timestamp >= shift.started.addingTimeInterval(-2),
                   point.horizontalAccuracy > 0, point.horizontalAccuracy <= 35,
-                  abs(point.timestamp.timeIntervalSinceNow) < 30 else {
+                  point.timestamp.timeIntervalSinceNow <= 10,
+                  point.timestamp.timeIntervalSinceNow >= -21600 else {
                 rejectedGPSCount += 1
                 continue
             }
@@ -408,7 +409,9 @@ struct TrackPoint: Codable {
             latestGPSLocation = point
             if let last = previous {
                 let seconds = point.timestamp.timeIntervalSince(last.timestamp)
-                guard seconds > 0 else { continue }
+                // Delayed batches must still be chronological; reject duplicates
+                // or out-of-order samples rather than rewinding the route.
+                guard seconds > 0 else { rejectedGPSCount += 1; continue }
                 let meters = point.distance(from: last)
                 let speed = meters / seconds
                 // Manual rest can include walking away from the parked car. Never add
