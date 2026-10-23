@@ -1708,7 +1708,7 @@ private struct ShareJourneyCard: View {
                     Text("\(shift.points.count) 点").foregroundStyle(Cockpit.muted)
                 }.font(.system(size: 11))
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                    tile("全天总里程", String(format: "%.2f km", shift.kilometers), .white)
+                    tile("全天总里程", String(format: "%.2f km", shift.kilometers), Cockpit.blue)
                     tile("完成订单", "\(shift.completedOrders) 单", Cockpit.green)
                     tile("载客里程", String(format: "%.2f km", shift.passengerKM), Cockpit.blue)
                     tile("空驶里程", String(format: "%.2f km", shift.emptyKilometers), .orange)
