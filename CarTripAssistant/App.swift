@@ -1807,6 +1807,7 @@ private struct RouteDetail: View {
     @State private var mapError: String?
     @State private var showDiagnostics = false
     @State private var replayRunning = false
+    @State private var replayMode = false
     @State private var replaySpeed = -30
     // Positive values are real-time multipliers; negative values are target
     // completion seconds, independent of the recorded trip duration.
@@ -1841,7 +1842,7 @@ private struct RouteDetail: View {
         return max(0, low - 1)
     }
     private var playbackCoordinate: CLLocationCoordinate2D? {
-        guard replayElapsed > 0 || replayRunning, !shift.points.isEmpty else { return nil }
+        guard replayMode, !shift.points.isEmpty else { return nil }
         let index = replayIndex
         let a = shift.points[index]
         let from = CLLocationCoordinate2D(latitude: a.lat, longitude: a.lon)
@@ -1888,10 +1889,10 @@ private struct RouteDetail: View {
             }
             Group {
                 if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
-                    BaiduRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
+                    BaiduRouteMap(shift: replayMode ? replayShift : shift,
                                   playbackCoordinate: playbackCoordinate,
                                   followVehicle: followVehicle,
-                                  replayActive: replayRunning || replayElapsed > 0,
+                                  replayActive: replayMode,
                                   liveCoordinate: store.latestGPSLocation?.coordinate)
                 } else {
                     TripRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
@@ -1964,14 +1965,15 @@ private struct RouteDetail: View {
                     HStack {
                         Button(replayRunning ? "暂停回放" : "播放轨迹") {
                             if replayElapsed >= replayDuration { replayElapsed = 0 }
+                            replayMode = true
                             replayLastTick = nil
                             replayRunning.toggle()
                         }.buttonStyle(.borderedProminent)
-                        Button("后退10秒") { replayRunning = false; replayElapsed = max(0, replayElapsed - 10) }
+                        Button("后退10秒") { replayMode = true; replayRunning = false; replayElapsed = max(0, replayElapsed - 10) }
                             .buttonStyle(.bordered)
-                        Button("前进10秒") { replayRunning = false; replayElapsed = min(replayDuration, replayElapsed + 10) }
+                        Button("前进10秒") { replayMode = true; replayRunning = false; replayElapsed = min(replayDuration, replayElapsed + 10) }
                             .buttonStyle(.bordered)
-                        Button("重置") { replayRunning = false; replayElapsed = 0 }
+                        Button("重置") { replayRunning = false; replayElapsed = 0; replayMode = false }
                             .buttonStyle(.bordered)
                         Spacer()
                         Picker("速度", selection: $replaySpeed) {
@@ -1989,9 +1991,9 @@ private struct RouteDetail: View {
                             Text("快速浏览 · 20秒").tag(-20)
                         }.pickerStyle(.menu)
                     }
-                    Slider(value: Binding(get: { replayElapsed }, set: { replayElapsed = $0; replayRunning = false }),
+                    Slider(value: Binding(get: { replayElapsed }, set: { replayMode = true; replayElapsed = $0; replayRunning = false }),
                            in: 0...max(1, replayDuration))
-                    Text(replayElapsed == 0 && !replayRunning ? "完整路线" : "回放：\(shift.points[min(replayIndex, replayCount - 1)].date.formatted(date: .omitted, time: .standard))")
+                    Text(!replayMode ? "完整路线" : "回放：\(shift.points[min(replayIndex, replayCount - 1)].date.formatted(date: .omitted, time: .standard))")
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(.horizontal, 15).padding(.vertical, 8)
             }
