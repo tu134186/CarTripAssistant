@@ -1363,22 +1363,27 @@ struct Dashboard: View {
     }
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 13) {
-            HStack {
+            HStack(alignment: .center, spacing: 10) {
                 Label("历史日报", systemImage: "calendar.badge.clock")
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(Cockpit.blue)
-                Spacer()
-                Text("\(store.history.count) 条记录")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 4)
+                Text("\(store.history.count) 条")
                     .font(.caption).foregroundStyle(Cockpit.muted)
+                    .fixedSize()
                 Button(selectingHistory ? "取消" : "批量删除") {
                     selectingHistory.toggle()
                     selectedHistoryIDs.removeAll()
                 }
-                .font(.subheadline.bold())
+                .font(.system(size: 13, weight: .semibold))
+                .fixedSize()
             }
             HStack(spacing: 10) {
                 TextField("搜索日期、备注、流水", text: $historySearch)
                     .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 0)
                     .autocorrectionDisabled()
                 Picker("时间", selection: $historyPeriod) {
                     Text("全部").tag(0)
@@ -1489,6 +1494,7 @@ struct Dashboard: View {
                                     .font(.subheadline.bold()).foregroundStyle(Cockpit.green)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
                         }
                         .buttonStyle(.plain)
                         if !selectingHistory {
@@ -1499,26 +1505,31 @@ struct Dashboard: View {
                         }
                     }
                     if !selectingHistory {
-                        HStack(spacing: 0) {
+                        HStack(spacing: 8) {
                             Button { detailShift = item } label: {
                                 Label("日报", systemImage: "doc.text")
+                                    .frame(maxWidth: .infinity)
                             }
-                            Spacer()
                             NavigationLink { ShareJourneyCard(shift: item) } label: {
                                 Label("分享卡", systemImage: "rectangle.portrait.on.rectangle.portrait")
+                                    .frame(maxWidth: .infinity)
                             }
-                            Spacer()
                             NavigationLink { RouteDetail(shift: item) } label: {
                                 Label("轨迹", systemImage: "map")
+                                    .frame(maxWidth: .infinity)
                             }
-                            Spacer()
                             ShareLink(item: store.report(item)) {
                                 Label("分享", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity)
                             }
                         }
                         .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                         .foregroundStyle(Cockpit.blue)
                         .buttonStyle(.plain)
+                        .padding(.vertical, 9)
+                        .background(Cockpit.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 10))
                     }
                 }
                 .padding(14)
@@ -2004,7 +2015,7 @@ private struct RouteDetail: View {
     @ViewBuilder private var replayControls: some View {
         if replayCount > 1 {
                 VStack(spacing: 7) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 10) {
                         Button(replayRunning ? "暂停" : "播放") {
                             if replayElapsed >= replayDuration { replayElapsed = 0 }
                             replayMode = true
@@ -2012,17 +2023,25 @@ private struct RouteDetail: View {
                             replayRunning.toggle()
                         }
                         .buttonStyle(.borderedProminent)
+                        .frame(maxWidth: .infinity)
                         Button { replayMode = true; replayRunning = false; replayElapsed = max(0, replayElapsed - 10) } label: {
-                            Image(systemName: "gobackward.10")
+                            Image(systemName: "gobackward.10").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
                         Button { replayMode = true; replayRunning = false; replayElapsed = min(replayDuration, replayElapsed + 10) } label: {
-                            Image(systemName: "goforward.10")
+                            Image(systemName: "goforward.10").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
                         Button("重置") { replayRunning = false; replayElapsed = 0; replayMode = false }
                             .buttonStyle(.bordered)
-                        Spacer(minLength: 0)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.regular)
+                    HStack {
+                        Text("回放速度").font(.caption).foregroundStyle(Cockpit.muted)
+                        Spacer()
                         Picker("速度", selection: $replaySpeed) {
                             Text("1×").tag(1)
                             Text("2×").tag(2)
@@ -2030,20 +2049,13 @@ private struct RouteDetail: View {
                             Text("10×").tag(10)
                             Text("20×").tag(20)
                             Text("30×").tag(30)
-                            Text("60秒").tag(-60)
-                            Text("30秒").tag(-30)
-                            Text("20秒").tag(-20)
+                            Text("60秒看完").tag(-60)
+                            Text("30秒看完").tag(-30)
+                            Text("20秒看完").tag(-20)
                         }
                         .pickerStyle(.menu)
-                        .labelsHidden()
-                        .frame(maxWidth: 90)
-                        .overlay(alignment: .leading) {
-                            Text(replaySpeed < 0 ? "\(-replaySpeed)秒" : "\(replaySpeed)×")
-                                .font(.caption.bold())
-                                .allowsHitTesting(false)
-                        }
+                        .fixedSize(horizontal: true, vertical: false)
                     }
-                    .controlSize(.small)
                     Slider(value: Binding(get: { replayElapsed }, set: { replayMode = true; replayElapsed = $0; replayRunning = false }),
                            in: 0...max(1, replayDuration))
                     Text(!replayMode ? "完整路线" : "回放：\(shift.points[min(replayIndex, replayCount - 1)].date.formatted(date: .omitted, time: .standard))")
@@ -2092,29 +2104,35 @@ private struct RouteDetail: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: embedded ? 440 : max(420, UIScreen.main.bounds.height * 0.52))
                 .clipped()
-            HStack {
-                Button(satelliteMode ? "标准地图" : "卫星地图") { satelliteMode.toggle() }
-                    .font(.caption.bold())
-                Text(OfflineMap.file == nil ? "在线地图 · 深圳离线包未下载" : "深圳离线道路图已安装 · © OpenStreetMap")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                if OfflineMap.file == nil {
-                    Button(mapDownload.downloading ? "取消下载" : "下载深圳地图") {
-                        if mapDownload.downloading { mapDownload.cancel() }
-                        else { mapDownload.start { mapRevision += 1 } }
-                    }.font(.caption.bold())
-                } else {
-                    Button("删除地图") {
-                        try? OfflineMap.remove()
-                        mapRevision += 1
-                    }.font(.caption.bold()).foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Button(satelliteMode ? "标准地图" : "卫星地图") { satelliteMode.toggle() }
+                        .font(.caption.bold())
+                    Spacer(minLength: 8)
+                    Text(OfflineMap.file == nil ? "在线地图 · 离线包未下载" : "深圳离线道路图已安装")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(1).minimumScaleFactor(0.8)
                 }
-                Button("导入") { importMap = true }
-                    .font(.caption.bold())
-                if OfflineMap.file == nil {
-                    Link(destination: URL(string: "https://github.com/tu134186/CarTripAssistant/releases/tag/shenzhen-map-v1")!) {
-                        Label("浏览器下载", systemImage: "safari")
-                    }.font(.caption.bold())
+                HStack(spacing: 14) {
+                    if OfflineMap.file == nil {
+                        Button(mapDownload.downloading ? "取消下载" : "下载深圳地图") {
+                            if mapDownload.downloading { mapDownload.cancel() }
+                            else { mapDownload.start { mapRevision += 1 } }
+                        }.font(.caption.bold())
+                    } else {
+                        Button("删除地图") {
+                            try? OfflineMap.remove()
+                            mapRevision += 1
+                        }.font(.caption.bold()).foregroundStyle(.red)
+                    }
+                    Button("导入") { importMap = true }
+                        .font(.caption.bold())
+                    if OfflineMap.file == nil {
+                        Link(destination: URL(string: "https://github.com/tu134186/CarTripAssistant/releases/tag/shenzhen-map-v1")!) {
+                            Label("浏览器下载", systemImage: "safari")
+                        }.font(.caption.bold())
+                    }
+                    Spacer(minLength: 0)
                 }
             }.padding(.horizontal, 15).padding(.top, 10)
             if mapDownload.downloading {
@@ -2195,6 +2213,7 @@ private struct RouteDetail: View {
             Button("确定") { mapError = nil }
         } message: { Text(mapError ?? "") }
         .navigationTitle(embedded ? "" : "行驶足迹")
+        .toolbar(embedded ? .hidden : .visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         .onReceive(replayTimer) { now in
