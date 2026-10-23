@@ -85,7 +85,9 @@ static BOOL started = NO;
                     minLat=MIN(minLat,p.latitude);maxLat=MAX(maxLat,p.latitude);
                     minLon=MIN(minLon,p.longitude);maxLon=MAX(maxLon,p.longitude);
                 }
-                BMKCoordinateSpan span=BMKCoordinateSpanMake(MAX(0.005,(maxLat-minLat)*1.3),MAX(0.005,(maxLon-minLon)*1.3));
+                // Fit the actual Shenzhen track bounds rather than the SDK's
+                // default world view. Keep a minimum span for very short trips.
+                BMKCoordinateSpan span=BMKCoordinateSpanMake(MAX(0.003,(maxLat-minLat)*1.25),MAX(0.003,(maxLon-minLon)*1.25));
                 [self.map setRegion:BMKCoordinateRegionMake(CLLocationCoordinate2DMake((minLat+maxLat)/2,(minLon+maxLon)/2),span) animated:NO];
                 self.fitted=YES;
             }
