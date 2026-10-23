@@ -26,6 +26,7 @@ struct BaiduRouteMap: UIViewRepresentable {
         // for every GPS point during SwiftUI redraw and replay.
         let rides = shift.rides.sorted { $0.started < $1.started }
         var rideCursor = 0
+        var lastPointDate: Date?
         func flush() {
             if current.count >= 2 {
                 segments.append(["points": current, "passenger": currentPassenger])
@@ -34,6 +35,10 @@ struct BaiduRouteMap: UIViewRepresentable {
         }
         for point in shift.points {
             guard (-90...90).contains(point.lat), (-180...180).contains(point.lon) else { continue }
+            // Imported/merged tracks can contain out-of-order timestamps.
+            // Reset the cursor rather than silently misclassifying those points.
+            if let last = lastPointDate, point.date < last { rideCursor = 0 }
+            lastPointDate = point.date
             while rideCursor < rides.count,
                   let ended = rides[rideCursor].ended,
                   ended < point.date {
