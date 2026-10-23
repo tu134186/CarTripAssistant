@@ -129,7 +129,7 @@ jobs:
           PY
       - name: Package V2.7.0 source archive
         run: |
-          zip -qry "V2.7.0-行程助手-源码.zip" CarTripAssistant scripts project.yml README.md
+          zip -qry "V2.7.0-行程助手-源码.zip" CarTripAssistant scripts project.yml Podfile README.md
           unzip -t "V2.7.0-行程助手-源码.zip" | tail -1
       - uses: actions/upload-artifact@v4
         with:
