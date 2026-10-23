@@ -271,9 +271,10 @@ struct TrackPoint: Codable {
         location.requestLocation()
     }
     func startRide() {
-        guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty, shift.breaks.last?.ended != nil || shift.breaks.isEmpty else { return }
+        guard var shift = active, shift.rides.last?.ended != nil || shift.rides.isEmpty else { return }
         recordBoundaryPoint(&shift)
         let now = Date()
+        if let i = shift.breaks.indices.last, shift.breaks[i].ended == nil { shift.breaks[i].ended = now }
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = now }
         shift.lastEmptyMovementAt = nil
         stationarySince = nil
@@ -329,9 +330,7 @@ struct TrackPoint: Codable {
         if let i = shift.rides.indices.last, shift.rides[i].ended == nil { shift.rides[i].ended = now }
         if let i = shift.breaks.indices.last, shift.breaks[i].ended == nil { shift.breaks[i].ended = now }
         if let i = shift.waitingPeriods.indices.last, shift.waitingPeriods[i].ended == nil { shift.waitingPeriods[i].ended = now }
-        if shift.breaks.last?.ended != now && !walking {
-            recordBoundaryPoint(&shift)
-        }
+        recordBoundaryPoint(&shift)
         stationarySince = nil
         previous = nil
         shift.ended = now
@@ -370,12 +369,13 @@ struct TrackPoint: Codable {
         let meters = point.distance(from: last)
         let accuracy = max(point.horizontalAccuracy, last.horizontalAccuracy)
         let recentSpeed = previous?.speed ?? -1
-        let credibleDriving = point.speed >= 1.5 || (point.speed >= 0 && recentSpeed >= 1.5)
-        if credibleDriving {
-            return meters >= max(2.0, min(8.0, accuracy * 0.25))
+        let credibleMovement = (point.speed >= 0.6 && point.speed < 50) ||
+            (recentSpeed >= 0.6 && recentSpeed < 50)
+        if credibleMovement {
+            return meters >= max(2.5, min(10.0, accuracy * 0.4))
         }
         if point.speed < 0 && recentSpeed < 0 {
-            return meters >= max(15.0, accuracy * 1.5) && meters / elapsed >= 1.5
+            return meters >= max(12.0, accuracy * 1.5) && meters / elapsed >= 0.8 && meters / elapsed < 50
         }
         return false
     }
@@ -444,13 +444,11 @@ struct TrackPoint: Codable {
                 guard seconds > 0 else { rejectedGPSCount += 1; continue }
                 let meters = point.distance(from: last)
                 let speed = meters / seconds
-                // Manual rest can include walking away from the parked car. Never add
-                // that movement to vehicle mileage, even if motion detection lags.
-                let manualBreakActive = shift.breaks.last.map { $0.ended == nil } ?? false
+                // All valid movement counts throughout the shift, including walking and legacy rest.
                 // Preserve sub-threshold motion: compare with the last credited
                 // fix rather than discarding each 5 m Core Location callback.
                 // Reset on breaks, GPS gaps and impossible jumps.
-                if manualBreakActive || seconds > 120 || speed >= 50 {
+                if seconds > 120 || speed >= 50 {
                     distanceAnchor = point
                 }
                 if let anchor = distanceAnchor,
@@ -463,9 +461,9 @@ struct TrackPoint: Codable {
                 let anchorMeters = point.distance(from: anchor)
                 let anchorSpeed = anchorSeconds > 0 ? anchorMeters / anchorSeconds : 0
                 let threshold = max(8, min(18, (anchor.horizontalAccuracy + point.horizontalAccuracy) * 0.5))
-                if !manualBreakActive && seconds <= 120 && anchorSeconds > 0 &&
+                if seconds <= 120 && anchorSeconds > 0 &&
                    anchorSeconds <= 120 && anchorMeters >= threshold &&
-                   anchorSpeed >= 0.8 && anchorSpeed < 50 && speed < 50 {
+                   anchorSpeed >= 0.6 && anchorSpeed < 50 && speed < 50 {
                     distanceAnchor = point
                     let km = anchorMeters / 1000
                     shift.kilometers += km
@@ -506,18 +504,10 @@ struct TrackPoint: Codable {
             // This applies equally to passenger trips and empty driving.
             let gpsGap = previous.map { point.timestamp.timeIntervalSince($0.timestamp) > 120 } ?? false
             if gpsGap { gpsGapCount += 1 }
-            if (breakActive || gpsGap) { needsNewTrackSegment = true }
-            // Preserve valid GPS fixes even when walking: motion classification is not
-            // reliable enough to hide the driver's location on the map. Walking and
-            // manual breaks are still excluded from vehicle mileage above.
-            // Even on a manual break, keep an accurate map trace; the mileage
-            // calculation above still excludes break and walking movement.
-            // Hard invariant: an active manual rest cannot append driving points.
-            // GPS callbacks and diagnostic received counts may still update.
-            let isManualResting = shift.breaks.last.map { $0.ended == nil } ?? false
-            let shouldAppendDrivingPoint = !isManualResting && !walking &&
-                (shift.points.isEmpty || shouldSaveTrackPoint(point))
-            if shouldAppendDrivingPoint {
+            if gpsGap { needsNewTrackSegment = true }
+            // Capture all credible movement independent of passenger/rest state.
+            // This is a recorded GPS fix, not an interpolated playback position.
+            if shift.points.isEmpty || shouldSaveTrackPoint(point) {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                               date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed,
                                               segmentStart: needsNewTrackSegment))
@@ -662,14 +652,14 @@ struct TrackPoint: Codable {
         let end = shift.ended ?? Date()
         let duration = max(0, end.timeIntervalSince(shift.started))
         let totals = shift.timeTotals(at: end)
-        let rest = totals.waiting + totals.manualRest
+        let rest = max(0, duration - totals.passenger)
         let work = totals.passenger + totals.empty
         return """
         行程助手 · 每日总结
         出车时间：\(shift.started.formatted())
         结束时间：\(end.formatted())
         出车时长：\(Int(duration / 60)) 分钟
-        总休息时长（含等客）：\(Int(rest / 60)) 分钟
+        总休息时长（所有非载客时间）：\(Int(rest / 60)) 分钟
         等客时长：\(Int(totals.waiting / 60)) 分钟
         吃饭休息：\(Int(totals.meal / 60)) 分钟
         充电休息：\(Int(totals.charging / 60)) 分钟
@@ -679,7 +669,7 @@ struct TrackPoint: Codable {
         非休息时长（载客+空驶）：\(Int(work / 60)) 分钟
         全天总里程：\(String(format: "%.2f", shift.kilometers)) 公里
         载客里程：\(String(format: "%.2f", shift.passengerKM)) 公里
-        空驶里程：\(String(format: "%.2f", shift.emptyKilometers)) 公里
+        空驶里程：\(String(format: "%.2f", max(0, shift.kilometers - shift.passengerKM))) 公里
         完成订单：\(shift.completedOrders) 单
         今日流水：\(shift.revenue)
         备注：\(shift.notes)
@@ -767,7 +757,6 @@ struct Dashboard: View {
                                 let idleShift = Shift(started: Date())
                                 mileageCard(idleShift)
                                 idleMetrics
-                                welcome
                             }
                         } else if selectedTab == 2 {
                             toolsPage
@@ -946,9 +935,17 @@ struct Dashboard: View {
             VStack(alignment: .trailing, spacing: 5) {
                 Text(Date().formatted(.dateTime.month().day()))
                     .font(.system(size: 12, weight: .semibold))
-                Text(store.active == nil ? "未出车" : (riding ? "载客中" : (resting ? "休息中" : "已出车")))
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(store.active == nil ? Cockpit.muted : Cockpit.green)
+                Button {
+                    if store.active == nil { store.startShift() }
+                    else { showFinish = true }
+                } label: {
+                    Label(store.active == nil ? "出车" : "收车", systemImage: store.active == nil ? "play.fill" : "stop.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .foregroundStyle(.white)
+                        .background(store.active == nil ? Cockpit.green : Color.red, in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
         }
         .foregroundStyle(.primary)
@@ -1259,7 +1256,7 @@ struct Dashboard: View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             let now = min(timeline.date, shift.ended ?? timeline.date)
             let totals = shift.timeTotals(at: now)
-            let restSeconds = totals.manualRest + totals.waiting
+            let restSeconds = max(0, now.timeIntervalSince(shift.started) - totals.passenger)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 metric("完成订单", "\(shift.completedOrders)", "单", "checkmark.circle.fill", Cockpit.green)
                 metric("载客里程", String(format: "%.2f", shift.passengerKM), "km", "person.fill", Cockpit.blue)
@@ -1302,26 +1299,8 @@ struct Dashboard: View {
         VStack(spacing: 10) {
             if riding {
                 action("乘客下车", symbol: "checkmark.flag.fill", color: .orange) { store.endRide() }
-            } else if resting {
-                action("结束休息", symbol: "play.fill", color: Cockpit.green) { store.endBreak() }
             } else {
-                HStack(spacing: 8) {
-                    compactRest("乘客上车", "person.fill", Cockpit.blue) { store.startRide() }
-                    compactRest("吃饭休息", "cup.and.saucer.fill", .orange) { store.startBreak(kind: .meal) }
-                    compactRest("充电等待", "bolt.fill", .purple) { store.startBreak(kind: .charging) }
-                    compactRest("其他休息", "sofa.fill", Cockpit.green) { store.startBreak(kind: .other) }
-                }
-            }
-            HStack {
-            Spacer(minLength: 0)
-            Button { showFinish = true } label: {
-                Label("收车", systemImage: "stop.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 232, height: 52)
-                    .foregroundStyle(.white)
-                    .background(Color.red.opacity(0.75), in: RoundedRectangle(cornerRadius: 16))
-            }
-            Spacer(minLength: 0)
+                action("乘客上车", symbol: "person.fill", color: Cockpit.blue) { store.startRide() }
             }
             Button(role: .destructive) { showDiscard = true } label: {
                 Text("放弃本次测试记录").font(.caption2).foregroundStyle(Cockpit.muted)
@@ -1733,8 +1712,8 @@ private struct ShareJourneyCard: View {
                     tile("全天总里程", String(format: "%.2f km", shift.kilometers), Cockpit.blue)
                     tile("完成订单", "\(shift.completedOrders) 单", Cockpit.green)
                     tile("载客里程", String(format: "%.2f km", shift.passengerKM), Cockpit.blue)
-                    tile("空驶里程", String(format: "%.2f km", shift.emptyKilometers), .orange)
-                    tile("总休息时间", clock(totals.waiting + totals.manualRest), .purple)
+                    tile("空驶里程", String(format: "%.2f km", max(0, shift.kilometers - shift.passengerKM)), .orange)
+                    tile("总休息时间", clock(max(0, end.timeIntervalSince(shift.started) - totals.passenger)), .purple)
                     tile("本次出车时长", clock(end.timeIntervalSince(shift.started)), .cyan)
                 }
                 HStack {
@@ -1833,7 +1812,7 @@ private struct RouteDetail: View {
     // Replay uses recorded timestamps, not the number of GPS points.
     // A missing GPS second is never presented as a genuine recorded fix.
     @State private var replayElapsed: TimeInterval = 0
-    private let replayTimer = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
+    private let replayTimer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     @State private var replayLastTick: Date? = nil
     private var replayCount: Int { shift.points.count }
     private var replayDuration: TimeInterval {
@@ -2060,7 +2039,7 @@ private struct RouteDetail: View {
                 replayLastTick = nil
                 return
             }
-            let delta = replayLastTick.map { max(0, min(2, now.timeIntervalSince($0))) } ?? 0.25
+            let delta = replayLastTick.map { max(0, min(2, now.timeIntervalSince($0))) } ?? 0.1
             replayLastTick = now
             replayElapsed = min(replayDuration, replayElapsed + delta * effectiveReplaySpeed)
             if replayElapsed >= replayDuration {
