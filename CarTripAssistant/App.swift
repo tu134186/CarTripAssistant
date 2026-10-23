@@ -823,7 +823,7 @@ struct Dashboard: View {
                                 Text("¥").font(.title2.bold()).foregroundStyle(Cockpit.green)
                                 TextField("例如 200", text: $revenue)
                                     .keyboardType(.decimalPad)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(.primary)
                                     .tint(Cockpit.blue)
                                     .font(.system(size: 25, weight: .bold, design: .rounded))
                                     .accessibilityLabel("今日流水金额")
@@ -837,7 +837,7 @@ struct Dashboard: View {
                             Text("备注（可选）").font(.headline)
                             TextField("例如：今日运营情况", text: $notes, axis: .vertical)
                                 .lineLimit(2...4)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.primary)
                                 .tint(Cockpit.blue)
                                 .padding(14)
                                 .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
@@ -868,7 +868,7 @@ struct Dashboard: View {
                     }
                 }
             }
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
             .presentationDetents([.medium, .large])
         }
         .sheet(item: $detailShift) { item in
@@ -883,7 +883,7 @@ struct Dashboard: View {
                             .foregroundStyle(Cockpit.green)
                         Text(store.report(item))
                             .font(.system(size: 14, design: .monospaced))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         if !item.notes.isEmpty { Text("备注：" + item.notes).foregroundStyle(Cockpit.muted) }
                     }
@@ -893,7 +893,7 @@ struct Dashboard: View {
                 .navigationTitle("历史日报详情")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { detailShift = nil } } }
             }
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         }
         .confirmationDialog("放弃本次出车？", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("放弃本次出车（不可恢复）", role: .destructive) { store.discardShift() }
@@ -1100,7 +1100,7 @@ struct Dashboard: View {
         }
         .padding(.top, 10).padding(.bottom, 5)
         .background(Cockpit.background)
-        .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.10)).frame(height: 1) }
+        .overlay(alignment: .top) { Rectangle().fill(Cockpit.muted.opacity(0.18)).frame(height: 1) }
     }
     private func tab(_ label: String, _ icon: String, index: Int) -> some View {
         Button { selectedTab = index } label: {
@@ -1187,7 +1187,7 @@ struct Dashboard: View {
         }
         .padding(22)
         .background(
-            LinearGradient(colors: [Color(red: 0.02, green: 0.37, blue: 0.83), Color(red: 0.03, green: 0.20, blue: 0.48), Cockpit.background],
+            LinearGradient(colors: [Color(red: 0.07, green: 0.43, blue: 0.92), Color(red: 0.04, green: 0.26, blue: 0.63), Color(red: 0.02, green: 0.15, blue: 0.35)],
                            startPoint: .topLeading, endPoint: .bottomTrailing),
             in: RoundedRectangle(cornerRadius: 25)
         )
@@ -1302,7 +1302,7 @@ struct Dashboard: View {
         }
         .buttonStyle(.plain)
         .background(Cockpit.secondary, in: RoundedRectangle(cornerRadius: 13))
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
     }
     private var welcome: some View {
         Button { store.startShift() } label: {
@@ -1431,7 +1431,7 @@ struct Dashboard: View {
                             .frame(width: 36, height: 42)
                     }
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .padding(15)
                 .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
             }
@@ -1454,7 +1454,7 @@ private struct TripRouteMap: UIViewRepresentable {
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
         map.delegate = context.coordinator
-        map.overrideUserInterfaceStyle = .dark
+        map.overrideUserInterfaceStyle = .unspecified
         map.showsCompass = true
         map.mapType = satelliteMode ? .hybrid : .standard
         map.showsUserLocation = true // Blue dot: live Core Location, distinct from stored trip start/end pins.
@@ -1659,7 +1659,7 @@ private struct ShareJourneyCard: View {
         .background(Cockpit.background)
         .navigationTitle("行程分享卡")
         .navigationBarTitleDisplayMode(.inline)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
     }
 }
 private struct RouteDetail: View {
@@ -1906,7 +1906,7 @@ private struct RouteDetail: View {
         } message: { Text(mapError ?? "") }
         .navigationTitle("行驶足迹")
         .navigationBarTitleDisplayMode(.inline)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         .onReceive(replayTimer) { now in
             guard replayRunning else {
                 replayLastTick = nil
