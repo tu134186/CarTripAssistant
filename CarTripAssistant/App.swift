@@ -716,6 +716,11 @@ struct Dashboard: View {
     @State private var showFinish = false
     @State private var historySearch = ""
     @State private var historyPeriod = 0
+    @State private var expandedHistoryDays: Set<String> = []
+    @AppStorage("cartrip.tools.statsExpanded") private var statsExpanded = false
+    @AppStorage("cartrip.tools.parkingExpanded") private var parkingExpanded = false
+    @AppStorage("cartrip.tools.backupExpanded") private var backupExpanded = false
+    @AppStorage("cartrip.tools.diagnosticsExpanded") private var diagnosticsExpanded = false
     @State private var detailShift: Shift?
     @State private var showDiscard = false
     @State private var deletionTarget: UUID?
@@ -962,8 +967,8 @@ struct Dashboard: View {
             }
             .padding(14)
             .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
-            VStack(alignment: .leading, spacing: 12) {
-                Label("行程统计", systemImage: "chart.bar.fill")
+            DisclosureGroup(isExpanded: $statsExpanded) {
+                VStack(alignment: .leading, spacing: 12) {
                     .font(.headline).foregroundStyle(Cockpit.green)
                 let shifts = store.history + (store.active.map { [$0] } ?? [])
                 let calendar = Calendar.current
@@ -995,7 +1000,14 @@ struct Dashboard: View {
                 let yearRevenue = year.compactMap { Double($0.revenue.trimmingCharacters(in: .whitespacesAndNewlines)) }.reduce(0, +)
                 toolRow("本周已录入流水", String(format: "¥%.2f", weekRevenue))
                 toolRow("今年已录入流水", String(format: "¥%.2f", yearRevenue))
+            
+                }
+                .padding(.top, 8)
+            } label: {
+                Label("行程统计", systemImage: "chart.bar.fill")
             }
+            .padding(16)
+            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             VStack(alignment: .leading, spacing: 12) {
                 Label("GPS 定位状态", systemImage: "location.circle.fill")
@@ -1008,8 +1020,8 @@ struct Dashboard: View {
                     .font(.caption).foregroundStyle(Cockpit.muted)
             }
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
-            VStack(alignment: .leading, spacing: 12) {
-                Label("停车与等客识别", systemImage: "car.side.fill")
+            DisclosureGroup(isExpanded: $parkingExpanded) {
+                VStack(alignment: .leading, spacing: 12) {
                 Picker("停车确认时间", selection: $store.parkingThresholdSeconds) {
                     Text("30 秒").tag(30.0)
                     Text("60 秒").tag(60.0)
@@ -1031,10 +1043,17 @@ struct Dashboard: View {
                 }
                 Text("仅显示当前识别结果；GPS 中断时不能保证自动识别停车。")
                     .font(.caption).foregroundStyle(Cockpit.muted)
+            
+                }
+                .padding(.top, 8)
+            } label: {
+                Label("停车与等客识别", systemImage: "car.side.fill")
             }
+            .padding(16)
+            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
-            VStack(alignment: .leading, spacing: 12) {
-                Label("数据备份", systemImage: "externaldrive.fill")
+            DisclosureGroup(isExpanded: $backupExpanded) {
+                VStack(alignment: .leading, spacing: 12) {
                     .font(.headline).foregroundStyle(.purple)
                 Text("导出包含历史日报、流水、轨迹及当前出车状态的 JSON 备份文件。")
                     .font(.subheadline).foregroundStyle(Cockpit.muted)
@@ -1064,10 +1083,17 @@ struct Dashboard: View {
             }.buttonStyle(.plain)
             Text("恢复前会自动保存旧数据快照；请先结束正在进行的行程。")
                     .font(.caption).foregroundStyle(Cockpit.muted)
+            
+                }
+                .padding(.top, 8)
+            } label: {
+                Label("数据备份", systemImage: "externaldrive.fill")
             }
+            .padding(16)
+            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
-            VStack(alignment: .leading, spacing: 8) {
-                Label("行程诊断", systemImage: "waveform.path.ecg")
+            DisclosureGroup(isExpanded: $diagnosticsExpanded) {
+                VStack(alignment: .leading, spacing: 12) {
                     .font(.headline).foregroundStyle(.orange)
                 toolRow("历史记录", "\(store.history.count) 条")
                 toolRow("最近定位距今", store.gpsLastUpdate.map { "\(Int(max(0, Date().timeIntervalSince($0)))) 秒" } ?? "暂无")
@@ -1094,7 +1120,14 @@ struct Dashboard: View {
                 toolRow("当前行程", store.active == nil ? "无" : "记录中")
                 Text("原地停车出现里程增加时，可查看 GPS 精度、速度和运动识别数据。")
                     .font(.caption).foregroundStyle(Cockpit.muted)
+            
+                }
+                .padding(.top, 8)
+            } label: {
+                Label("行程诊断", systemImage: "waveform.path.ecg")
             }
+            .padding(16)
+            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
         }
     }
@@ -1261,12 +1294,16 @@ struct Dashboard: View {
                     compactRest("其他休息", "sofa.fill", Cockpit.green) { store.startBreak(kind: .other) }
                 }
             }
+            HStack {
+            Spacer(minLength: 0)
             Button { showFinish = true } label: {
                 Label("收车", systemImage: "stop.fill")
                     .font(.system(size: 14, weight: .semibold))
-                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .frame(width: 232, height: 52)
                     .foregroundStyle(.white)
-                    .background(Color.red.opacity(0.75), in: RoundedRectangle(cornerRadius: 13))
+                    .background(Color.red.opacity(0.75), in: RoundedRectangle(cornerRadius: 16))
+            }
+            Spacer(minLength: 0)
             }
             Button(role: .destructive) { showDiscard = true } label: {
                 Text("放弃本次测试记录").font(.caption2).foregroundStyle(Cockpit.muted)
@@ -1386,7 +1423,16 @@ struct Dashboard: View {
                 }
                 .buttonStyle(.plain)
             }
-            ForEach(filteredHistory) { item in
+            let historyDays = Dictionary(grouping: filteredHistory) { Calendar.current.startOfDay(for: $0.started) }
+            ForEach(historyDays.keys.sorted(by: >), id: \.self) { day in
+                let dayKey = String(Int(day.timeIntervalSince1970))
+                let entries = historyDays[day] ?? []
+                DisclosureGroup(isExpanded: Binding(
+                    get: { expandedHistoryDays.contains(dayKey) },
+                    set: { if $0 { expandedHistoryDays.insert(dayKey) } else { expandedHistoryDays.remove(dayKey) } }
+                )) {
+                    LazyVStack(spacing: 10) {
+            ForEach(entries) { item in
                 HStack(spacing: 12) {
                     Button { detailShift = item } label: {
                     VStack(alignment: .leading, spacing: 7) {
@@ -1437,6 +1483,18 @@ struct Dashboard: View {
                 }
                 .foregroundStyle(.primary)
                 .padding(15)
+                .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
+            }
+                    }
+                } label: {
+                    HStack {
+                        Text(day.formatted(.dateTime.year().month().day())).font(.headline)
+                        Spacer()
+                        Text("\(entries.count) 条 · " + String(format: "%.2f km", entries.reduce(0) { $0 + $1.kilometers }))
+                            .font(.caption).foregroundStyle(Cockpit.muted)
+                    }
+                }
+                .padding(14)
                 .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
             }
         }
