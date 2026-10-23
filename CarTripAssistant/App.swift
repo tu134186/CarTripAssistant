@@ -736,6 +736,7 @@ struct Dashboard: View {
     @State private var deletionTarget: UUID?
     @State private var gpxExport: URL?
     @State private var selectedTab = 0
+    @State private var showCurrentRoute = false
     @State private var showRestorePicker = false
     @State private var restoreNotice: String?
     @State private var confirmRestore = false
@@ -768,18 +769,6 @@ struct Dashboard: View {
                                 idleMetrics
                                 welcome
                             }
-                        } else if selectedTab == 1 {
-                            if let shift = store.active {
-                                Label("今日行驶轨迹", systemImage: "map.fill")
-                                    .font(.system(size: 23, weight: .bold))
-                                    .foregroundStyle(Cockpit.blue)
-                                liveMap(shift)
-                            } else {
-                                Label("开始出车后显示实时轨迹", systemImage: "location.slash.fill")
-                    .font(.headline).foregroundStyle(Cockpit.muted)
-                    .frame(maxWidth: .infinity, minHeight: 130)
-                    .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 20))
-                            }
                         } else if selectedTab == 2 {
                             toolsPage
                         } else {
@@ -798,6 +787,13 @@ struct Dashboard: View {
                 bottomTabs
             }
         }
+        }
+        .navigationDestination(isPresented: $showCurrentRoute) {
+            if let shift = store.active {
+                RouteDetail(shift: shift)
+            } else {
+                ContentUnavailableView("暂无行驶轨迹", systemImage: "map", description: Text("开始出车后可查看实时轨迹"))
+            }
         }
         .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json]) { result in
             switch result {
@@ -1150,7 +1146,16 @@ struct Dashboard: View {
     private var bottomTabs: some View {
         HStack(spacing: 0) {
             tab("首页", "house.fill", index: 0)
-            tab("轨迹", "map.fill", index: 1)
+            Button { showCurrentRoute = true } label: {
+                VStack(spacing: 5) {
+                    Image(systemName: "map.fill").font(.system(size: 20))
+                    Text("轨迹").font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(Cockpit.muted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+            }
+            .buttonStyle(.plain)
             tab("工具", "wrench.and.screwdriver.fill", index: 2)
             tab("记录", "doc.text.fill", index: 3)
         }
