@@ -895,7 +895,13 @@ struct Dashboard: View {
         .fullScreenCover(item: $historyRoute) { item in
             NavigationStack {
                 RouteDetail(shift: item)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        Color.clear.frame(height: 8)
+                    }
                     .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            Text("行驶足迹").font(.headline)
+                        }
                         ToolbarItem(placement: .confirmationAction) {
                             Button("完成") { historyRoute = nil }
                         }
@@ -2070,8 +2076,9 @@ private struct RouteDetail: View {
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 14)
-            .padding(.top, embedded ? 10 : 18)
-            .padding(.bottom, 8)
+            .padding(.top, embedded ? 10 : 12)
+            .padding(.bottom, 12)
+            .background(Cockpit.background)
             if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
                 Toggle("跟随车辆", isOn: $followVehicle)
                     .font(.caption).padding(.horizontal, 14)
@@ -2100,7 +2107,7 @@ private struct RouteDetail: View {
             }
                 .id(mapRevision)
                 .frame(maxWidth: .infinity)
-                .frame(height: embedded ? 300 : 290)
+                .frame(height: embedded ? 240 : 220)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
