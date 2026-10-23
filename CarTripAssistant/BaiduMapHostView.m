@@ -9,6 +9,7 @@
 @property(nonatomic,strong) NSArray<NSArray<NSNumber *> *> *previousCoordinates;
 @property(nonatomic,strong) BMKPolyline *route;
 @property(nonatomic,strong) BMKPointAnnotation *vehicle;
+@property(nonatomic,strong) BMKPointAnnotation *livePin;
 @property(nonatomic,assign) BOOL fitted;
 @property(nonatomic,strong) BMKPointAnnotation *startPin;
 @property(nonatomic,strong) BMKPointAnnotation *endPin;
@@ -144,6 +145,23 @@ static BOOL started = NO;
         self.vehicle.coordinate=[self baidu:playback];
     } else if (self.vehicle) {
         [self.map removeAnnotation:self.vehicle];self.vehicle=nil;
+    }
+}
+- (void)setLivePosition:(NSArray<NSNumber *> *)position follow:(BOOL)follow {
+    if (!self.map) return;
+    if (position.count != 2) {
+        if (self.livePin) { [self.map removeAnnotation:self.livePin]; self.livePin=nil; }
+        return;
+    }
+    CLLocationCoordinate2D coordinate=[self baidu:position];
+    if (!self.livePin) {
+        self.livePin=[BMKPointAnnotation new];
+        self.livePin.title=@"实时位置";
+        [self.map addAnnotation:self.livePin];
+    }
+    self.livePin.coordinate=coordinate;
+    if (follow) {
+        [self.map setCenterCoordinate:coordinate animated:YES];
     }
 }
 - (BMKOverlayView *)mapView:(BMKMapView *)mapView viewForOverlay:(id<BMKOverlay>)overlay {
