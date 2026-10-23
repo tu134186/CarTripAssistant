@@ -1817,7 +1817,7 @@ private struct RouteDetail: View {
     @AppStorage("cartrip.routeMapProvider") private var routeMapProvider = "baidu"
     @AppStorage("cartrip.baiduPrivacyConsent") private var baiduPrivacyConsent = false
     @State private var satelliteMode = false
-    @State private var followVehicle = false
+    @AppStorage("cartrip.followVehicle") private var followVehicle = false
     // Replay uses recorded timestamps, not the number of GPS points.
     // A missing GPS second is never presented as a genuine recorded fix.
     @State private var replayElapsed: TimeInterval = 0

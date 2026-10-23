@@ -9,6 +9,8 @@
 @property(nonatomic,strong) BMKPointAnnotation *vehicle;
 @property(nonatomic,strong) BMKPointAnnotation *livePin;
 @property(nonatomic,assign) BOOL fitted;
+@property(nonatomic,assign) BOOL pendingFit;
+@property(nonatomic,assign) BMKCoordinateRegion initialRegion;
 @property(nonatomic,strong) BMKPointAnnotation *startPin;
 @property(nonatomic,strong) BMKPointAnnotation *endPin;
 @property(nonatomic,strong) NSArray<NSDictionary *> *lastSegments;
@@ -36,6 +38,14 @@ static BOOL started = NO;
         }
     }
     return self;
+}
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    if (self.pendingFit && self.bounds.size.width > 0 && self.bounds.size.height > 0) {
+        [self.map setRegion:self.initialRegion animated:NO];
+        self.pendingFit = NO;
+        self.fitted = YES;
+    }
 }
 - (void)didMoveToWindow {
     [super didMoveToWindow];
@@ -71,6 +81,7 @@ static BOOL started = NO;
             if (self.startPin) { [self.map removeAnnotation:self.startPin]; self.startPin=nil; }
             if (self.endPin) { [self.map removeAnnotation:self.endPin]; self.endPin=nil; }
             self.fitted=NO;
+            self.pendingFit=NO;
         }
         if (all.count) {
             CLLocationCoordinate2D first=[self baidu:all.firstObject], last=[self baidu:all.lastObject];
@@ -88,8 +99,9 @@ static BOOL started = NO;
                 // Fit the actual Shenzhen track bounds rather than the SDK's
                 // default world view. Keep a minimum span for very short trips.
                 BMKCoordinateSpan span=BMKCoordinateSpanMake(MAX(0.003,(maxLat-minLat)*1.25),MAX(0.003,(maxLon-minLon)*1.25));
-                [self.map setRegion:BMKCoordinateRegionMake(CLLocationCoordinate2DMake((minLat+maxLat)/2,(minLon+maxLon)/2),span) animated:NO];
-                self.fitted=YES;
+                self.initialRegion = BMKCoordinateRegionMake(CLLocationCoordinate2DMake((minLat+maxLat)/2,(minLon+maxLon)/2),span);
+                self.pendingFit = YES;
+                [self setNeedsLayout];
             }
         }
     }
@@ -101,15 +113,8 @@ static BOOL started = NO;
     }
 }
 - (void)followPlaybackPosition:(NSArray<NSNumber *> *)position {
-    if (!self.map || position.count != 2) return;
-    CLLocationCoordinate2D target = [self baidu:position];
-    CLLocation *center = [[CLLocation alloc] initWithLatitude:self.map.centerCoordinate.latitude longitude:self.map.centerCoordinate.longitude];
-    CLLocation *vehicle = [[CLLocation alloc] initWithLatitude:target.latitude longitude:target.longitude];
-    // Replay uses a fixed viewport, matching Apple MapKit's overview behavior.
-    // Keep the car annotation moving but never recenter the map on every tick.
-    // Users may pan and zoom manually without the map snapping back.
-    (void)center;
-    (void)vehicle;
+    // Fixed viewport during replay: only the historical car moves.
+    (void)position;
 }
 - (void)setLivePosition:(NSArray<NSNumber *> *)position follow:(BOOL)follow {
     if (!self.map) return;
@@ -124,7 +129,7 @@ static BOOL started = NO;
         [self.map addAnnotation:self.livePin];
     }
     self.livePin.coordinate=coordinate;
-    if (follow) {
+    if (follow && !self.vehicle) {
         CLLocation *oldCenter = [[CLLocation alloc] initWithLatitude:self.map.centerCoordinate.latitude longitude:self.map.centerCoordinate.longitude];
         CLLocation *newCenter = [[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
         if ([oldCenter distanceFromLocation:newCenter] > 12) {
