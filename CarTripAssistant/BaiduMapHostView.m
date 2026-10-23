@@ -80,8 +80,9 @@ static BOOL started = NO;
         if (!all.count) {
             if (self.startPin) { [self.map removeAnnotation:self.startPin]; self.startPin=nil; }
             if (self.endPin) { [self.map removeAnnotation:self.endPin]; self.endPin=nil; }
-            self.fitted=NO;
-            self.pendingFit=NO;
+            // Playback may temporarily have zero drawable segments (first GPS
+            // fix). Keep the full-day camera instead of resetting its fit.
+            // A new map view starts with fitted=NO naturally.
         }
         if (all.count) {
             CLLocationCoordinate2D first=[self baidu:all.firstObject], last=[self baidu:all.lastObject];

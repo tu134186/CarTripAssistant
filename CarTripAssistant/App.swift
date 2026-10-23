@@ -1977,7 +1977,7 @@ private struct RouteDetail: View {
                             .buttonStyle(.bordered)
                         Button("重置") { replayRunning = false; replayElapsed = 0; replayMode = false }
                             .buttonStyle(.bordered)
-                        Spacer()
+                        Spacer(minLength: 0)
                         Picker("速度", selection: $replaySpeed) {
                             Text("1×").tag(1)
                             Text("2×").tag(2)
@@ -1988,10 +1988,16 @@ private struct RouteDetail: View {
                             Text("40×").tag(40)
                             Text("50×").tag(50)
                             Divider()
-                            Text("快速浏览 · 60秒").tag(-60)
-                            Text("快速浏览 · 30秒").tag(-30)
-                            Text("快速浏览 · 20秒").tag(-20)
-                        }.pickerStyle(.menu)
+                            Text("60秒看完").tag(-60)
+                            Text("30秒看完").tag(-30)
+                            Text("20秒看完").tag(-20)
+                        } label: {
+                            Text(replaySpeed < 0 ? "\(-replaySpeed)秒看完" : "\(replaySpeed)×")
+                                .font(.system(size: 13, weight: .semibold))
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .pickerStyle(.menu)
                     }
                     Slider(value: Binding(get: { replayElapsed }, set: { replayMode = true; replayElapsed = $0; replayRunning = false }),
                            in: 0...max(1, replayDuration))
