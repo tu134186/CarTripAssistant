@@ -22,6 +22,10 @@ struct BaiduRouteMap: UIViewRepresentable {
         var current: [[NSNumber]] = []
         var currentPassenger = false
         var previous: TrackPoint?
+        // A full-day route may have 10,000+ fixes. Avoid scanning every ride
+        // for every GPS point during SwiftUI redraw and replay.
+        let rides = shift.rides.sorted { $0.started < $1.started }
+        var rideCursor = 0
         func flush() {
             if current.count >= 2 {
                 segments.append(["points": current, "passenger": currentPassenger])
@@ -30,9 +34,14 @@ struct BaiduRouteMap: UIViewRepresentable {
         }
         for point in shift.points {
             guard (-90...90).contains(point.lat), (-180...180).contains(point.lon) else { continue }
-            let passenger = shift.rides.contains {
-                point.date >= $0.started && point.date <= ($0.ended ?? Date())
+            while rideCursor < rides.count,
+                  let ended = rides[rideCursor].ended,
+                  ended < point.date {
+                rideCursor += 1
             }
+            let passenger = rideCursor < rides.count &&
+                point.date >= rides[rideCursor].started &&
+                point.date <= (rides[rideCursor].ended ?? Date())
             var discontinuity = point.segmentStart
             if let old = previous {
                 let seconds = point.date.timeIntervalSince(old.date)
