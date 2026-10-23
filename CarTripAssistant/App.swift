@@ -2070,7 +2070,7 @@ private struct RouteDetail: View {
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 14)
-            .padding(.top, 10)
+            .padding(.top, embedded ? 10 : 18)
             .padding(.bottom, 8)
             if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
                 Toggle("跟随车辆", isOn: $followVehicle)
@@ -2100,8 +2100,13 @@ private struct RouteDetail: View {
             }
                 .id(mapRevision)
                 .frame(maxWidth: .infinity)
-                .frame(height: embedded ? 440 : 410)
-                .clipped()
+                .frame(height: embedded ? 300 : 290)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(Cockpit.blue.opacity(0.12), lineWidth: 1)
+                }
+                .padding(.horizontal, 14)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     Button(satelliteMode ? "标准地图" : "卫星地图") { satelliteMode.toggle() }
