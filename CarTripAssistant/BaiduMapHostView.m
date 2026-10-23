@@ -107,7 +107,11 @@ static BOOL started = NO;
     }
     self.livePin.coordinate=coordinate;
     if (follow) {
-        [self.map setCenterCoordinate:coordinate animated:YES];
+        CLLocation *oldCenter = [[CLLocation alloc] initWithLatitude:self.map.centerCoordinate.latitude longitude:self.map.centerCoordinate.longitude];
+        CLLocation *newCenter = [[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
+        if ([oldCenter distanceFromLocation:newCenter] > 12) {
+            [self.map setCenterCoordinate:coordinate animated:YES];
+        }
     }
 }
 - (BMKOverlayView *)mapView:(BMKMapView *)mapView viewForOverlay:(id<BMKOverlay>)overlay {
