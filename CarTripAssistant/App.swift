@@ -701,11 +701,11 @@ private enum Cockpit {
     private static func adaptive(_ light: UIColor, _ dark: UIColor) -> Color {
         Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? dark : light })
     }
-    static let background = adaptive(UIColor(red: 0.95, green: 0.97, blue: 0.99, alpha: 1), UIColor(red: 0.045, green: 0.071, blue: 0.12, alpha: 1))
-    static let panel = adaptive(.white, UIColor(red: 0.085, green: 0.13, blue: 0.21, alpha: 1))
-    static let secondary = adaptive(UIColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1), UIColor(red: 0.12, green: 0.18, blue: 0.28, alpha: 1))
+    static let background = adaptive(UIColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1), UIColor(red: 0.035, green: 0.055, blue: 0.105, alpha: 1))
+    static let panel = adaptive(UIColor(red: 0.975, green: 0.99, blue: 1, alpha: 1), UIColor(red: 0.085, green: 0.14, blue: 0.235, alpha: 1))
+    static let secondary = adaptive(UIColor(red: 0.78, green: 0.87, blue: 0.98, alpha: 1), UIColor(red: 0.13, green: 0.21, blue: 0.34, alpha: 1))
     static let blue = adaptive(UIColor(red: 0.06, green: 0.35, blue: 0.84, alpha: 1), UIColor(red: 0.19, green: 0.48, blue: 1, alpha: 1))
-    static let muted = adaptive(UIColor(red: 0.29, green: 0.37, blue: 0.48, alpha: 1), UIColor(red: 0.61, green: 0.70, blue: 0.83, alpha: 1))
+    static let muted = adaptive(UIColor(red: 0.19, green: 0.29, blue: 0.43, alpha: 1), UIColor(red: 0.70, green: 0.79, blue: 0.92, alpha: 1))
     static let green = adaptive(UIColor(red: 0.04, green: 0.52, blue: 0.33, alpha: 1), UIColor(red: 0.26, green: 0.88, blue: 0.65, alpha: 1))
 }
 struct Dashboard: View {
@@ -755,11 +755,16 @@ struct Dashboard: View {
                             }
                         } else if selectedTab == 1 {
                             if let shift = store.active {
-                                Text("今日行驶轨迹").font(.title2.bold())
+                                Label("今日行驶轨迹", systemImage: "map.fill")
+                                    .font(.system(size: 23, weight: .bold))
+                                    .foregroundStyle(Cockpit.blue)
                                 liveMap(shift)
                                 routeEntry(shift)
                             } else {
-                                Text("开始出车后显示实时轨迹").foregroundStyle(Cockpit.muted)
+                                Label("开始出车后显示实时轨迹", systemImage: "location.slash.fill")
+                    .font(.headline).foregroundStyle(Cockpit.muted)
+                    .frame(maxWidth: .infinity, minHeight: 130)
+                    .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 20))
                             }
                         } else if selectedTab == 2 {
                             toolsPage
@@ -1109,9 +1114,10 @@ struct Dashboard: View {
             tab("工具", "wrench.and.screwdriver.fill", index: 2)
             tab("记录", "doc.text.fill", index: 3)
         }
-        .padding(.top, 10).padding(.bottom, 5)
-        .background(Cockpit.background)
-        .overlay(alignment: .top) { Rectangle().fill(Cockpit.muted.opacity(0.18)).frame(height: 1) }
+        .padding(.horizontal, 10)
+        .padding(.top, 10).padding(.bottom, 7)
+        .background(Cockpit.panel)
+        .overlay(alignment: .top) { Rectangle().fill(Cockpit.blue.opacity(0.16)).frame(height: 1) }
     }
     private func tab(_ label: String, _ icon: String, index: Int) -> some View {
         Button { selectedTab = index } label: {
@@ -1119,9 +1125,10 @@ struct Dashboard: View {
                 Image(systemName: icon).font(.system(size: 20))
                 Text(label).font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(selectedTab == index ? Cockpit.blue : Cockpit.muted)
+            .foregroundStyle(selectedTab == index ? Color.white : Cockpit.muted)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .padding(.vertical, 9)
+            .background(selectedTab == index ? Cockpit.blue : Color.clear, in: RoundedRectangle(cornerRadius: 15))
         }
         .buttonStyle(.plain)
     }
@@ -1207,7 +1214,8 @@ struct Dashboard: View {
                            startPoint: .topLeading, endPoint: .bottomTrailing),
             in: RoundedRectangle(cornerRadius: 25)
         )
-        .overlay(RoundedRectangle(cornerRadius: 25).stroke(Cockpit.blue.opacity(0.3), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 25).stroke(.white.opacity(0.24), lineWidth: 1))
+        .shadow(color: Cockpit.blue.opacity(0.22), radius: 14, y: 7)
     }
     private func clockString(_ seconds: Int) -> String {
         let hours = seconds / 3600
@@ -1260,10 +1268,11 @@ struct Dashboard: View {
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
         .padding(15)
         .background(
-            LinearGradient(colors: [tint, tint.opacity(0.78)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            LinearGradient(colors: [tint, tint.opacity(0.88), tint.opacity(0.70)], startPoint: .topLeading, endPoint: .bottomTrailing),
             in: RoundedRectangle(cornerRadius: 20)
         )
-        .shadow(color: tint.opacity(0.18), radius: 9, y: 4)
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.28), lineWidth: 1))
+        .shadow(color: tint.opacity(0.25), radius: 10, y: 5)
     }
     private var controls: some View {
         VStack(spacing: 10) {
