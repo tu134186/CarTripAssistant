@@ -933,8 +933,22 @@ struct Dashboard: View {
     }
     private var toolsPage: some View {
         VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "wrench.adjustable.fill")
+                    .font(.system(size: 23, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 52, height: 52)
+                    .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 16))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("驾驶工具箱").font(.system(size: 23, weight: .bold))
+                    Text("统计 · 定位 · 备份 · 诊断")
+                        .font(.caption).foregroundStyle(Cockpit.muted)
+                }
+                Spacer()
+            }
+            .padding(.bottom, 4)
             VStack(alignment: .leading, spacing: 8) {
-                Label("外观设置", systemImage: "sun.max.fill").font(.headline)
+                Label("外观设置", systemImage: "sun.max.fill").font(.headline).foregroundStyle(Cockpit.blue)
                 Picker("显示模式", selection: $appearance) {
                     Text("自动").tag("auto")
                     Text("白天").tag("day")
@@ -944,9 +958,6 @@ struct Dashboard: View {
             }
             .padding(14)
             .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
-            Text("驾驶工具箱").font(.system(size: 23, weight: .bold))
-            Text("定位诊断 · 停车识别 · 行程备份与恢复 · 里程统计")
-                .font(.caption).foregroundStyle(Cockpit.muted)
             VStack(alignment: .leading, spacing: 12) {
                 Label("行程统计", systemImage: "chart.bar.fill")
                     .font(.headline).foregroundStyle(Cockpit.green)
