@@ -944,7 +944,7 @@ struct Dashboard: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("行驶足迹")
                                 .font(.system(size: 25, weight: .bold))
-                                .foregroundStyle(Cockpit.ink)
+                                .foregroundStyle(Color.primary)
                             Text("查看轨迹 · 分段回放")
                                 .font(.system(size: 11))
                                 .foregroundStyle(Cockpit.muted)
