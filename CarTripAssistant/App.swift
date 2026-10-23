@@ -785,9 +785,11 @@ struct Dashboard: View {
                         } else {
                             historySection
                         }
-                        Text("本工具不接入网约车平台，订单趟数由乘客上下车按钮记录；GPS 里程为估算值。")
-                            .font(.caption).foregroundStyle(Cockpit.muted)
-                            .padding(.horizontal, 4)
+                        if selectedTab == 0 {
+                            Text("本工具不接入网约车平台，订单趟数由乘客上下车按钮记录；GPS 里程为估算值。")
+                                .font(.caption).foregroundStyle(Cockpit.muted)
+                                .padding(.horizontal, 4)
+                        }
                     }
                     .padding(.horizontal, 14)
                     .padding(.top, 12)
@@ -1176,7 +1178,7 @@ struct Dashboard: View {
         } label: {
             ZStack(alignment: .bottomLeading) {
                 TripRouteMap(shift: shift)
-                    .frame(height: 205)
+                    .frame(height: max(460, UIScreen.main.bounds.height * 0.68))
                     .allowsHitTesting(false)
                 Label("今日行驶轨迹 · 点击查看", systemImage: "location.fill")
                     .font(.system(size: 12, weight: .bold))
