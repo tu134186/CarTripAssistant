@@ -789,7 +789,7 @@ struct Dashboard: View {
                 bottomTabs
             }
         }
-
+        }
         .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json]) { result in
             switch result {
             case .success(let url):
