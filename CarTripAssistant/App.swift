@@ -929,7 +929,7 @@ struct Dashboard: View {
                     .foregroundStyle(store.active == nil ? Cockpit.muted : Cockpit.green)
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
     }
     private var toolsPage: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1108,7 +1108,7 @@ struct Dashboard: View {
                 Image(systemName: icon).font(.system(size: 20))
                 Text(label).font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(selectedTab == index ? Color.cyan : Cockpit.muted)
+            .foregroundStyle(selectedTab == index ? Cockpit.blue : Cockpit.muted)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         }
@@ -1151,7 +1151,7 @@ struct Dashboard: View {
                         .font(.system(size: 12))
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
             .padding(14)
             .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 17))
@@ -1162,10 +1162,10 @@ struct Dashboard: View {
             HStack {
                 Label("全天累计里程", systemImage: "car.side.fill")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Cockpit.muted)
+                    .foregroundStyle(.white.opacity(0.88))
                 Spacer()
                 Image(systemName: "location.north.line.fill")
-                    .foregroundStyle(Cockpit.blue)
+                    .foregroundStyle(.white.opacity(0.9))
             }
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text(String(format: "%.2f", shift.kilometers))
@@ -1173,15 +1173,15 @@ struct Dashboard: View {
                     .minimumScaleFactor(0.6).lineLimit(1)
                     .monospacedDigit()
                     .foregroundStyle(.white)
-                Text("km").font(.system(size: 19, weight: .medium)).foregroundStyle(Cockpit.muted)
+                Text("km").font(.system(size: 19, weight: .medium)).foregroundStyle(.white.opacity(0.82))
             }
             Rectangle().fill(.white.opacity(0.09)).frame(height: 1)
             HStack(spacing: 8) {
                 Image(systemName: "dot.radiowaves.left.and.right")
-                    .foregroundStyle(Cockpit.green)
+                    .foregroundStyle(Color(red: 0.53, green: 1, blue: 0.78))
                 Text(store.gpsStatus).foregroundStyle(.white)
                 Spacer()
-                Text(store.motionStatus).foregroundStyle(Cockpit.muted)
+                Text(store.motionStatus).foregroundStyle(.white.opacity(0.8))
             }
             .font(.system(size: 12, weight: .medium))
         }
@@ -1223,27 +1223,31 @@ struct Dashboard: View {
         }
     }
     private func metric(_ label: String, _ value: String, _ unit: String, _ symbol: String, _ tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 7) {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack(spacing: 9) {
                 Image(systemName: symbol)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(tint)
-                    .frame(width: 29, height: 29)
-                    .background(tint.opacity(0.20), in: RoundedRectangle(cornerRadius: 8))
-                Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-                    .lineLimit(1).minimumScaleFactor(0.75)
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 32, height: 32)
+                    .background(.white.opacity(0.22), in: RoundedRectangle(cornerRadius: 10))
+                Text(label)
+                    .font(.system(size: 13, weight: .bold))
+                    .lineLimit(1).minimumScaleFactor(0.8)
             }
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value).font(.system(size: 21, weight: .bold, design: .rounded))
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(value)
+                    .font(.system(size: 24, weight: .heavy, design: .rounded))
                     .monospacedDigit().minimumScaleFactor(0.55).lineLimit(1)
-                Text(unit).font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
+                Text(unit).font(.system(size: 12, weight: .semibold)).opacity(0.85)
             }
-            .foregroundStyle(.white)
         }
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-        .padding(12)
-        .background(LinearGradient(colors: [tint.opacity(0.26), Cockpit.panel], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 17))
-        .overlay(RoundedRectangle(cornerRadius: 17).stroke(tint.opacity(0.55), lineWidth: 1))
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
+        .padding(15)
+        .background(
+            LinearGradient(colors: [tint, tint.opacity(0.78)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 20)
+        )
+        .shadow(color: tint.opacity(0.18), radius: 9, y: 4)
     }
     private var controls: some View {
         VStack(spacing: 10) {
