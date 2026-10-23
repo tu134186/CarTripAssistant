@@ -30,9 +30,13 @@ jobs:
             ROOT="$(dirname "$PROJECT")"
           fi
           test -f "$ROOT/CarTripAssistant/App.swift"
-          cp CarTripAssistant/App.swift /tmp/cartrip-current.swift
-          cp -R "$ROOT/CarTripAssistant/." CarTripAssistant/
-          cp /tmp/cartrip-current.swift CarTripAssistant/App.swift
+          # Current repository is authoritative. Never overwrite new Baidu SDK
+          # source, Info.plist or assets with the legacy app.zip snapshot.
+          test -s CarTripAssistant/App.swift
+          test -s CarTripAssistant/BaiduRouteMap.swift
+          test -s CarTripAssistant/BaiduMapHostView.m
+          test -s CarTripAssistant/Info.plist
+          echo "Using version-controlled app source; legacy app.zip is validation-only"
           python3 - <<'PY'
           import plistlib
           p='CarTripAssistant/Info.plist'
@@ -79,7 +83,7 @@ jobs:
         run: xcodegen generate
       - name: Install Baidu Map SDK
         run: |
-          sudo gem install cocoapods --no-document || true
+          pod --version
           pod install --repo-update
       - name: Build unsigned IPA
         env:
@@ -94,6 +98,7 @@ jobs:
           with open(p,'wb') as f: plistlib.dump(data,f)
           print('Baidu SDK AK configured:',bool(key))
           PY
+          test -f CarTripAssistant.xcworkspace/contents.xcworkspacedata
           xcodebuild -workspace CarTripAssistant.xcworkspace -scheme CarTripAssistant -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/CarTripAssistant.app Payload/
