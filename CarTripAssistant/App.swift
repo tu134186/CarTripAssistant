@@ -512,7 +512,12 @@ struct TrackPoint: Codable {
             // manual breaks are still excluded from vehicle mileage above.
             // Even on a manual break, keep an accurate map trace; the mileage
             // calculation above still excludes break and walking movement.
-            if (shift.points.isEmpty || shouldSaveTrackPoint(point)) && !breakActive && !walking {
+            // Hard invariant: an active manual rest cannot append driving points.
+            // GPS callbacks and diagnostic received counts may still update.
+            let isManualResting = shift.breaks.last.map { $0.ended == nil } ?? false
+            let shouldAppendDrivingPoint = !isManualResting && !walking &&
+                (shift.points.isEmpty || shouldSaveTrackPoint(point))
+            if shouldAppendDrivingPoint {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                               date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed,
                                               segmentStart: needsNewTrackSegment))
