@@ -1,8 +1,8 @@
 # 行程助手 CarTripAssistant
 
-当前版本：**V2.8.0 / Build 2800**（iOS 16.0+）
+当前版本：**V2.9.0 / Build 2900**（iOS 16.0+）
 
-版本一致性：云编译 IPA Info.plist、IPA 文件名、源码归档和 GitHub Artifacts 均使用 V2.8.0；Build 号 2800。
+版本一致性：云编译 IPA Info.plist、IPA 文件名、源码归档和 GitHub Artifacts 均使用 V2.9.0；Build 号 2900。
 
 V2.5.3：在 V2.4.7 基础上同步 App、云编译、IPA、源码包和说明版本号；保留此前外观模式与轨迹回放修改。尚待云编译和真机验证。
 
@@ -42,4 +42,4 @@ V2.6.3 / Build 2603：停车GPS继续接收但不再按漂移持续追加轨迹�
 
 V2.6.3 / Build 2603：增加手动休息期间禁止追加行驶轨迹的显式保护。GPS仍持续接收用于诊断，轨迹点数与接收点数不同；需真机核验停车状态及版本。
 
-V2.8.0 / Build 2800：新增轨迹页苹果/百度地图选择；百度地图SDK通过 CocoaPods 安装，AK 由 Actions Secret BAIDU_MAP_AK 注入，仅进入 IPA，不进入公开源码归档；需用户同意百度地图隐私政策后启用；GPS采集、里程算法保持V2.6.3不变。此版本尚未核实云编译和真机地图渲染，百度坐标转换使用官方 BMKCoordTrans；首版仅在轨迹详情页提供切换。
+V2.9.0 / Build 2900：新增轨迹页苹果/百度地图选择；百度地图SDK通过 CocoaPods 安装，AK 由 Actions Secret BAIDU_MAP_AK 注入，仅进入 IPA，不进入公开源码归档；需用户同意百度地图隐私政策后启用；GPS采集、里程算法保持V2.6.3不变。此版本尚未核实云编译和真机地图渲染，百度坐标转换使用官方 BMKCoordTrans；首版仅在轨迹详情页提供切换。
