@@ -787,7 +787,6 @@ struct Dashboard: View {
                 bottomTabs
             }
         }
-        }
         .navigationDestination(isPresented: $showCurrentRoute) {
             if let shift = store.active {
                 RouteDetail(shift: shift)
@@ -799,6 +798,7 @@ struct Dashboard: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
         }
         .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json]) { result in
             switch result {
