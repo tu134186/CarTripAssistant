@@ -759,7 +759,6 @@ struct Dashboard: View {
                                     .font(.system(size: 23, weight: .bold))
                                     .foregroundStyle(Cockpit.blue)
                                 liveMap(shift)
-                                routeEntry(shift)
                             } else {
                                 Label("开始出车后显示实时轨迹", systemImage: "location.slash.fill")
                     .font(.headline).foregroundStyle(Cockpit.muted)
@@ -1151,34 +1150,6 @@ struct Dashboard: View {
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 20))
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(Cockpit.blue.opacity(0.5)))
-        }
-        .buttonStyle(.plain)
-    }
-    private func routeEntry(_ shift: Shift) -> some View {
-        NavigationLink {
-            RouteDetail(shift: shift)
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
-                    .font(.system(size: 21, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 48, height: 48)
-                    .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 15))
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("查看完整行驶轨迹")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.primary)
-                    Text("\(shift.points.count) 个 GPS 记录点 · 点击进入回放")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Cockpit.muted)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Cockpit.blue)
-            }
-            .padding(15)
-            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 19))
         }
         .buttonStyle(.plain)
     }
