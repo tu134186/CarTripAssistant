@@ -901,6 +901,8 @@ struct Dashboard: View {
                         }
                     }
             }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
             .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         }
         .sheet(item: $detailShift) { item in
@@ -914,6 +916,8 @@ struct Dashboard: View {
                         }
                     }
             }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
             .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         }
         .confirmationDialog("删除选中的历史记录？", isPresented: $confirmBatchDelete, titleVisibility: .visible) {
@@ -2114,7 +2118,7 @@ private struct RouteDetail: View {
             }
                 .id(mapRevision)
                 .frame(maxWidth: .infinity)
-                .frame(height: embedded ? 440 : 360)
+                .frame(height: embedded ? 440 : 410)
                 .clipped()
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
