@@ -1514,22 +1514,11 @@ private struct TripRouteMap: UIViewRepresentable {
                 map.addAnnotation(pin)
             }
             coordinator.playbackPin?.coordinate = playbackCoordinate
-            // Follow the vehicle instead of leaving the map zoomed to the whole trip.
-            if !coordinator.followingPlayback {
-                map.setRegion(MKCoordinateRegion(center: playbackCoordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006)), animated: false)
-                coordinator.followingPlayback = true
-            } else {
-                let center = CLLocation(latitude: map.centerCoordinate.latitude, longitude: map.centerCoordinate.longitude)
-                let vehicle = CLLocation(latitude: playbackCoordinate.latitude, longitude: playbackCoordinate.longitude)
-                if center.distance(from: vehicle) > 45 {
-                    map.setCenter(playbackCoordinate, animated: false)
-                }
-            }
+            // Overview playback: the vehicle moves while the map stays fixed.
+            // The full recorded route remains visible at the original framing.
         } else if let pin = coordinator.playbackPin {
             map.removeAnnotation(pin)
             coordinator.playbackPin = nil
-            coordinator.followingPlayback = false
         }
         guard coordinator.lastCount != shift.points.count ||
               coordinator.shiftID != shift.id ||
@@ -1626,7 +1615,6 @@ private struct TripRouteMap: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var lastCount = -1
         var playbackPin: MKPointAnnotation?
-        var followingPlayback = false
         var hasFramedRoute = false
         var shiftID: UUID?
         var lastRideSignature = ""
