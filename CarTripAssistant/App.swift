@@ -783,7 +783,6 @@ struct Dashboard: View {
                     .padding(.top, 12)
                     .padding(.bottom, 26)
                 }
-                .scrollBounceBehavior(.always)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
                 bottomTabs
