@@ -14,12 +14,46 @@ struct BaiduRouteMap: UIViewRepresentable {
         BaiduMapHostView(frame: .zero)
     }
     func updateUIView(_ view: BaiduMapHostView, context: Context) {
-        let coordinates: [[NSNumber]] = shift.points.map {
-            [NSNumber(value: $0.lat), NSNumber(value: $0.lon)]
+        // Match Apple MapKit: passenger periods are green, empty driving blue.
+        // Never bridge gaps >8s, reversed timestamps or implausible GPS jumps.
+        var segments: [[String: Any]] = []
+        var current: [[NSNumber]] = []
+        var currentPassenger = false
+        var previous: TrackPoint?
+        func flush() {
+            if current.count >= 2 {
+                segments.append(["points": current, "passenger": currentPassenger])
+            }
+            current.removeAll()
         }
+        for point in shift.points {
+            guard (-90...90).contains(point.lat), (-180...180).contains(point.lon) else { continue }
+            let passenger = shift.rides.contains {
+                point.date >= $0.started && point.date <= ($0.ended ?? Date())
+            }
+            var discontinuity = point.segmentStart
+            if let old = previous {
+                let seconds = point.date.timeIntervalSince(old.date)
+                let meters = CLLocation(latitude: old.lat, longitude: old.lon)
+                    .distance(from: CLLocation(latitude: point.lat, longitude: point.lon))
+                discontinuity = discontinuity || seconds <= 0 || seconds > 8 || meters / seconds >= 50
+            }
+            if discontinuity {
+                flush()
+                currentPassenger = passenger
+            } else if passenger != currentPassenger {
+                let boundary = current.last
+                flush()
+                currentPassenger = passenger
+                if let boundary = boundary { current.append(boundary) }
+            }
+            current.append([NSNumber(value: point.lat), NSNumber(value: point.lon)])
+            previous = point
+        }
+        flush()
         let playback: [NSNumber]? = playbackCoordinate.map {
             [NSNumber(value: $0.latitude), NSNumber(value: $0.longitude)]
         }
-        view.renderCoordinates(coordinates, playback: playback)
+        view.renderSegments(segments, playback: playback)
     }
 }
