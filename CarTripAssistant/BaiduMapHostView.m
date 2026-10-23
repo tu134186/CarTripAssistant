@@ -67,6 +67,11 @@ static BOOL started = NO;
             if ([entry[@"passenger"] boolValue]) [self.passengerLines addObject:line];
             [self.map addOverlay:line];
         }
+        if (!all.count) {
+            if (self.startPin) { [self.map removeAnnotation:self.startPin]; self.startPin=nil; }
+            if (self.endPin) { [self.map removeAnnotation:self.endPin]; self.endPin=nil; }
+            self.fitted=NO;
+        }
         if (all.count) {
             CLLocationCoordinate2D first=[self baidu:all.firstObject], last=[self baidu:all.lastObject];
             if (!self.startPin) { self.startPin=[BMKPointAnnotation new]; self.startPin.title=@"起点"; [self.map addAnnotation:self.startPin]; }
