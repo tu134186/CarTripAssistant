@@ -1,8 +1,8 @@
 # 行程助手 CarTripAssistant
 
-当前版本：**V3.0.3 / Build 3003**（iOS 16.0+）
+当前版本：**V3.0.4 / Build 3004**（iOS 16.0+）
 
-版本一致性：云编译 IPA Info.plist、IPA 文件名、源码归档和 GitHub Artifacts 均使用 V3.0.3；Build 号 3003。
+版本一致性：云编译 IPA Info.plist、IPA 文件名、源码归档和 GitHub Artifacts 均使用 V3.0.4；Build 号 3004。
 
 V2.5.3：在 V2.4.7 基础上同步 App、云编译、IPA、源码包和说明版本号；保留此前外观模式与轨迹回放修改。尚待云编译和真机验证。
 
@@ -70,3 +70,9 @@ V3.0.0 / Build 3000：新增轨迹页苹果/百度地图选择；百度地图SDK
 - 底部「轨迹」按钮直接打开已有完整 RouteDetail 页面，不再显示中间地图预览。
 - 保留地图来源切换、缩放、GPS诊断、回放控制及返回操作。
 - 未开始出车时显示空状态提示，不更改 GPS 与里程逻辑。
+
+
+## V3.0.4 / Build 3004 — iOS 16 编译兼容
+
+- 将 iOS 17 才引入的 ContentUnavailableView 替换为 iOS 16 兼容的 SwiftUI 空状态布局。
+- 保留底部轨迹按钮直达完整轨迹详情；未改 GPS、里程和回放。

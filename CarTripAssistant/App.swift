@@ -792,7 +792,12 @@ struct Dashboard: View {
             if let shift = store.active {
                 RouteDetail(shift: shift)
             } else {
-                ContentUnavailableView("暂无行驶轨迹", systemImage: "map", description: Text("开始出车后可查看实时轨迹"))
+                VStack(spacing: 12) {
+                    Image(systemName: "map").font(.system(size: 36)).foregroundStyle(Cockpit.blue)
+                    Text("暂无行驶轨迹").font(.headline)
+                    Text("开始出车后可查看实时轨迹").font(.subheadline).foregroundStyle(Cockpit.muted)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json]) { result in
