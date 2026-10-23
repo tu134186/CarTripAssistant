@@ -894,18 +894,36 @@ struct Dashboard: View {
         }
         .fullScreenCover(item: $historyRoute) { item in
             NavigationStack {
-                RouteDetail(shift: item)
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        Color.clear.frame(height: 8)
-                    }
-                    .toolbar {
-                        ToolbarItem(placement: .principal) {
-                            Text("行驶足迹").font(.headline)
+                VStack(spacing: 0) {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("行驶足迹")
+                                .font(.system(size: 25, weight: .bold))
+                                .foregroundStyle(Cockpit.ink)
+                            Text("查看轨迹 · 分段回放")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Cockpit.muted)
                         }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("完成") { historyRoute = nil }
-                        }
+                        Spacer()
+                        Button("完成") { historyRoute = nil }
+                            .font(.system(size: 16, weight: .semibold))
                     }
+                    .padding(.horizontal, 18)
+                    .frame(height: 78)
+                    .frame(maxWidth: .infinity)
+                    .background(Cockpit.background)
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(Cockpit.blue.opacity(0.10)).frame(height: 1)
+                    }
+                    ScrollView {
+                        RouteDetail(shift: item, embedded: true)
+                            .padding(.bottom, 24)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                }
+                .background(Cockpit.background.ignoresSafeArea())
+                .toolbar(.hidden, for: .navigationBar)
             }
             .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         }
