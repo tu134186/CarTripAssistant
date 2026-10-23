@@ -892,7 +892,7 @@ struct Dashboard: View {
             .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
             .presentationDetents([.medium, .large])
         }
-        .sheet(item: $historyRoute) { item in
+        .fullScreenCover(item: $historyRoute) { item in
             NavigationStack {
                 RouteDetail(shift: item)
                     .toolbar {
@@ -901,11 +901,9 @@ struct Dashboard: View {
                         }
                     }
             }
-            .presentationDetents([.large])
-            .presentationDragIndicator(.hidden)
             .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         }
-        .sheet(item: $detailShift) { item in
+        .fullScreenCover(item: $detailShift) { item in
             NavigationStack {
                 HistoryReportDetail(shift: item)
                     .navigationTitle("历史日报详情")
@@ -916,8 +914,6 @@ struct Dashboard: View {
                         }
                     }
             }
-            .presentationDetents([.large])
-            .presentationDragIndicator(.hidden)
             .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         }
         .confirmationDialog("删除选中的历史记录？", isPresented: $confirmBatchDelete, titleVisibility: .visible) {
