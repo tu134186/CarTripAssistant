@@ -729,6 +729,7 @@ struct Dashboard: View {
     @State private var detailShift: Shift?
     @State private var showDiscard = false
     @State private var deletionTarget: UUID?
+    @State private var historyRoute: Shift?
     @State private var selectingHistory = false
     @State private var selectedHistoryIDs: Set<UUID> = []
     @State private var confirmBatchDelete = false
@@ -890,6 +891,17 @@ struct Dashboard: View {
             }
             .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
             .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $historyRoute) { item in
+            NavigationStack {
+                RouteDetail(shift: item)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("完成") { historyRoute = nil }
+                        }
+                    }
+            }
+            .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         }
         .sheet(item: $detailShift) { item in
             NavigationStack {
@@ -1514,7 +1526,7 @@ struct Dashboard: View {
                                 Label("分享卡", systemImage: "rectangle.portrait.on.rectangle.portrait")
                                     .frame(maxWidth: .infinity)
                             }
-                            NavigationLink { RouteDetail(shift: item) } label: {
+                            Button { historyRoute = item } label: {
                                 Label("轨迹", systemImage: "map")
                                     .frame(maxWidth: .infinity)
                             }
@@ -2102,7 +2114,7 @@ private struct RouteDetail: View {
             }
                 .id(mapRevision)
                 .frame(maxWidth: .infinity)
-                .frame(height: embedded ? 440 : max(420, UIScreen.main.bounds.height * 0.52))
+                .frame(height: embedded ? 440 : 360)
                 .clipped()
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
