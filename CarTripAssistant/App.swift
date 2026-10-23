@@ -1143,7 +1143,9 @@ struct Dashboard: View {
                 Label("今日行驶轨迹 · 点击查看", systemImage: "location.fill")
                     .font(.system(size: 12, weight: .bold))
                     .padding(.horizontal, 12).padding(.vertical, 9)
-                    .background(.black.opacity(0.78), in: Capsule())
+                    .foregroundStyle(Cockpit.blue)
+                    .background(Cockpit.panel.opacity(0.94), in: Capsule())
+                    .overlay(Capsule().stroke(Cockpit.blue.opacity(0.28), lineWidth: 1))
                     .padding(12)
             }
             .frame(maxWidth: .infinity)
@@ -1782,7 +1784,12 @@ private struct RouteDetail: View {
     @State private var mapError: String?
     @State private var showDiagnostics = false
     @State private var replayRunning = false
-    @State private var replaySpeed = 1
+    @State private var replaySpeed = -30
+    // Positive values are real-time multipliers; negative values are target
+    // completion seconds, independent of the recorded trip duration.
+    private var effectiveReplaySpeed: Double {
+        replaySpeed > 0 ? Double(replaySpeed) : max(1, replayDuration / Double(-replaySpeed))
+    }
     @State private var satelliteMode = false
     // Replay uses recorded timestamps, not the number of GPS points.
     // A missing GPS second is never presented as a genuine recorded fix.
@@ -1915,6 +1922,14 @@ private struct RouteDetail: View {
                             Text("2×").tag(2)
                             Text("5×").tag(5)
                             Text("10×").tag(10)
+                            Text("20×").tag(20)
+                            Text("30×").tag(30)
+                            Text("40×").tag(40)
+                            Text("50×").tag(50)
+                            Divider()
+                            Text("快速浏览 · 60秒").tag(-60)
+                            Text("快速浏览 · 30秒").tag(-30)
+                            Text("快速浏览 · 20秒").tag(-20)
                         }.pickerStyle(.menu)
                     }
                     Slider(value: Binding(get: { replayElapsed }, set: { replayElapsed = $0; replayRunning = false }),
@@ -1976,7 +1991,7 @@ private struct RouteDetail: View {
             }
             let delta = replayLastTick.map { max(0, min(2, now.timeIntervalSince($0))) } ?? 0.25
             replayLastTick = now
-            replayElapsed = min(replayDuration, replayElapsed + delta * Double(replaySpeed))
+            replayElapsed = min(replayDuration, replayElapsed + delta * effectiveReplaySpeed)
             if replayElapsed >= replayDuration {
                 replayRunning = false
                 replayLastTick = nil
