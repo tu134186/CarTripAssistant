@@ -641,6 +641,11 @@ struct TrackPoint: Codable {
         history.removeAll { $0.id == id }
         save()
     }
+    func deleteHistoryBatch(_ ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        history.removeAll { ids.contains($0.id) }
+        save()
+    }
     func discardShift() {
         active = nil
         previous = nil
@@ -724,6 +729,9 @@ struct Dashboard: View {
     @State private var detailShift: Shift?
     @State private var showDiscard = false
     @State private var deletionTarget: UUID?
+    @State private var selectingHistory = false
+    @State private var selectedHistoryIDs: Set<UUID> = []
+    @State private var confirmBatchDelete = false
     @State private var gpxExport: URL?
     @State private var selectedTab = 0
     @State private var showRestorePicker = false
@@ -885,27 +893,26 @@ struct Dashboard: View {
         }
         .sheet(item: $detailShift) { item in
             NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text(item.started.formatted(date: .complete, time: .omitted))
-                            .font(.title2.bold())
-                        Text("今日流水").foregroundStyle(Cockpit.muted)
-                        Text(item.revenue.isEmpty ? "未填写" : "¥" + item.revenue)
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundStyle(Cockpit.green)
-                        Text(store.report(item))
-                            .font(.system(size: 14, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        if !item.notes.isEmpty { Text("备注：" + item.notes).foregroundStyle(Cockpit.muted) }
+                HistoryReportDetail(shift: item)
+                    .navigationTitle("历史日报详情")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("完成") { detailShift = nil }
+                        }
                     }
-                    .padding(20)
-                }
-                .background(Cockpit.background)
-                .navigationTitle("历史日报详情")
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { detailShift = nil } } }
             }
             .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
+        }
+        .confirmationDialog("删除选中的历史记录？", isPresented: $confirmBatchDelete, titleVisibility: .visible) {
+            Button("永久删除 \(selectedHistoryIDs.count) 条", role: .destructive) {
+                store.deleteHistoryBatch(selectedHistoryIDs)
+                selectedHistoryIDs.removeAll()
+                selectingHistory = false
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("删除后无法恢复，未勾选的记录不受影响。")
         }
         .confirmationDialog("放弃本次出车？", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("放弃本次出车（不可恢复）", role: .destructive) { store.discardShift() }
@@ -1363,6 +1370,11 @@ struct Dashboard: View {
                 Spacer()
                 Text("\(store.history.count) 条记录")
                     .font(.caption).foregroundStyle(Cockpit.muted)
+                Button(selectingHistory ? "取消" : "批量删除") {
+                    selectingHistory.toggle()
+                    selectedHistoryIDs.removeAll()
+                }
+                .font(.subheadline.bold())
             }
             HStack(spacing: 10) {
                 TextField("搜索日期、备注、流水", text: $historySearch)
@@ -1424,6 +1436,21 @@ struct Dashboard: View {
                 }
                 .buttonStyle(.plain)
             }
+            if selectingHistory && !filteredHistory.isEmpty {
+                HStack {
+                    Button("全选筛选结果") {
+                        selectedHistoryIDs.formUnion(filteredHistory.map { $0.id })
+                    }
+                    Spacer()
+                    Text("已选 \(selectedHistoryIDs.count) 条")
+                    Button("删除") { confirmBatchDelete = true }
+                        .foregroundStyle(.red)
+                        .disabled(selectedHistoryIDs.isEmpty)
+                }
+                .font(.subheadline)
+                .padding(12)
+                .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 12))
+            }
             let historyDays = Dictionary(grouping: filteredHistory) { Calendar.current.startOfDay(for: $0.started) }
             ForEach(historyDays.keys.sorted(by: >), id: \.self) { day in
                 let dayKey = String(Int(day.timeIntervalSince1970))
@@ -1435,7 +1462,25 @@ struct Dashboard: View {
                     LazyVStack(spacing: 10) {
             ForEach(entries) { item in
                 HStack(spacing: 12) {
-                    Button { detailShift = item } label: {
+                    if selectingHistory {
+                        Button {
+                            if selectedHistoryIDs.contains(item.id) {
+                                selectedHistoryIDs.remove(item.id)
+                            } else {
+                                selectedHistoryIDs.insert(item.id)
+                            }
+                        } label: {
+                            Image(systemName: selectedHistoryIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                                .font(.title2)
+                                .frame(width: 32, height: 44)
+                        }
+                    }
+                    Button {
+                        if selectingHistory {
+                            if selectedHistoryIDs.contains(item.id) { selectedHistoryIDs.remove(item.id) }
+                            else { selectedHistoryIDs.insert(item.id) }
+                        } else { detailShift = item }
+                    } label: {
                     VStack(alignment: .leading, spacing: 7) {
                         Text(item.started.formatted(.dateTime.year().month().day()))
                             .font(.system(size: 16, weight: .bold))
@@ -1454,6 +1499,7 @@ struct Dashboard: View {
                     }
                     .buttonStyle(.plain)
                     Spacer(minLength: 5)
+                    if !selectingHistory {
                     NavigationLink {
                         ShareJourneyCard(shift: item)
                     } label: {
@@ -1482,6 +1528,7 @@ struct Dashboard: View {
                             .frame(width: 36, height: 42)
                     }
                 }
+                    }
                 .foregroundStyle(.primary)
                 .padding(15)
                 .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
@@ -1514,6 +1561,7 @@ private struct TripRouteMap: UIViewRepresentable {
     let shift: Shift
     var playbackCoordinate: CLLocationCoordinate2D? = nil
     var satelliteMode: Bool = false
+    var interactive3D: Bool = false
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
         map.delegate = context.coordinator
@@ -1521,7 +1569,8 @@ private struct TripRouteMap: UIViewRepresentable {
         map.showsCompass = true
         map.mapType = satelliteMode ? .hybrid : .standard
         map.showsUserLocation = true // Blue dot: live Core Location, distinct from stored trip start/end pins.
-        map.isRotateEnabled = false
+        map.isRotateEnabled = interactive3D
+        map.isPitchEnabled = interactive3D
         let shenzhen = CLLocationCoordinate2D(latitude: 22.60, longitude: 114.05)
         map.setRegion(MKCoordinateRegion(center: shenzhen, span: MKCoordinateSpan(latitudeDelta: 0.45, longitudeDelta: 0.65)), animated: false)
         return map
@@ -1529,6 +1578,8 @@ private struct TripRouteMap: UIViewRepresentable {
     func updateUIView(_ map: MKMapView, context: Context) {
         let desiredMapType: MKMapType = satelliteMode ? .hybrid : .standard
         if map.mapType != desiredMapType { map.mapType = desiredMapType }
+        map.isRotateEnabled = interactive3D
+        map.isPitchEnabled = interactive3D
         // Passenger boundaries can change without a new GPS point; invalidate
         // the rendered route whenever pickup/dropoff timestamps change.
         let rideSignature = shift.rides.map {
@@ -1702,10 +1753,23 @@ private struct ShareJourneyCard: View {
                     Spacer()
                     Image(systemName: "car.side.fill").font(.title2).foregroundStyle(Cockpit.blue)
                 }
-                TripRouteMap(shift: shift)
-                    .frame(height: 250)
+                NavigationLink {
+                    FullscreenJourneyMap(shift: shift)
+                } label: {
+                    ZStack(alignment: .bottomTrailing) {
+                        TripRouteMap(shift: shift)
+                            .frame(height: 250)
+                            .allowsHitTesting(false)
+                        Text("点击放大 · 旋转地图")
+                            .font(.caption.bold())
+                            .padding(9)
+                            .foregroundStyle(.white)
+                            .background(.black.opacity(0.65), in: Capsule())
+                            .padding(10)
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: 15))
-                    .allowsHitTesting(false)
+                }
+                .buttonStyle(.plain)
                 HStack(spacing: 12) {
                     Label("全天轨迹", systemImage: "line.diagonal").foregroundStyle(Cockpit.blue)
                     Label("载客路段", systemImage: "line.diagonal").foregroundStyle(Cockpit.green)
@@ -1738,6 +1802,110 @@ private struct ShareJourneyCard: View {
         .navigationTitle("行程分享卡")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
+    }
+}
+private struct HistoryReportDetail: View {
+    let shift: Shift
+    private func clock(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        return String(format: "%02d:%02d", total / 3600, (total / 60) % 60)
+    }
+    private func row(_ name: String, _ value: String) -> some View {
+        HStack {
+            Text(name).foregroundStyle(Cockpit.muted)
+            Spacer(minLength: 12)
+            Text(value).fontWeight(.semibold)
+                .multilineTextAlignment(.trailing)
+        }
+        .font(.subheadline)
+        .padding(.vertical, 5)
+    }
+    private func panel<Content: View>(_ name: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(name).font(.headline).foregroundStyle(Cockpit.blue)
+            content()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
+    }
+    var body: some View {
+        let end = shift.ended ?? Date()
+        let totals = shift.timeTotals(at: end)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(shift.started.formatted(date: .complete, time: .omitted))
+                    .font(.title2.bold())
+                panel("今日流水") {
+                    Text(shift.revenue.isEmpty ? "未填写" : "¥" + shift.revenue)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(Cockpit.green)
+                }
+                panel("行程概览") {
+                    row("出车时间", shift.started.formatted(date: .omitted, time: .shortened))
+                    row("收车时间", end.formatted(date: .omitted, time: .shortened))
+                    row("出车总时长", clock(end.timeIntervalSince(shift.started)))
+                    row("完成订单", "\(shift.completedOrders) 单")
+                    row("全天总里程", String(format: "%.2f km", shift.kilometers))
+                    row("载客里程", String(format: "%.2f km", shift.passengerKM))
+                    row("空驶里程", String(format: "%.2f km", max(0, shift.kilometers - shift.passengerKM)))
+                }
+                panel("时间分布") {
+                    row("载客时间", clock(totals.passenger))
+                    row("空驶时间", clock(totals.empty))
+                    row("等待时间", clock(totals.waiting))
+                    row("吃饭休息", clock(totals.meal))
+                    row("充电休息", clock(totals.charging))
+                    row("其他休息", clock(totals.other))
+                    row("总休息时间", clock(max(0, end.timeIntervalSince(shift.started) - totals.passenger - totals.empty)))
+                }
+                if !shift.notes.isEmpty {
+                    panel("备注") { Text(shift.notes).font(.subheadline) }
+                }
+                NavigationLink {
+                    FullscreenJourneyMap(shift: shift)
+                } label: {
+                    Label("查看完整轨迹地图", systemImage: "map.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(16)
+                        .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(.white)
+                }
+            }
+            .padding(16)
+        }
+        .background(Cockpit.background)
+    }
+}
+private struct FullscreenJourneyMap: View {
+    let shift: Shift
+    @State private var satellite = false
+    @State private var revision = UUID()
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("双指缩放、旋转、倾斜")
+                    .font(.caption).foregroundStyle(Cockpit.muted)
+                Spacer()
+                Button(satellite ? "标准" : "卫星") { satellite.toggle() }
+                Button("全程") { revision = UUID() }
+            }
+            .padding(12)
+            TripRouteMap(shift: shift, satelliteMode: satellite, interactive3D: true)
+                .id(revision)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            HStack {
+                Label("空驶", systemImage: "line.diagonal").foregroundStyle(.blue)
+                Label("载客", systemImage: "line.diagonal").foregroundStyle(.green)
+                Spacer()
+                Text("\(shift.points.count) GPS点").foregroundStyle(Cockpit.muted)
+            }
+            .font(.caption).padding(12)
+        }
+        .background(Cockpit.background)
+        .navigationTitle("完整轨迹地图")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 private struct RouteDetail: View {
