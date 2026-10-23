@@ -6,6 +6,8 @@ import CoreLocation
 struct BaiduRouteMap: UIViewRepresentable {
     let shift: Shift
     let playbackCoordinate: CLLocationCoordinate2D?
+    let followVehicle: Bool
+    let liveCoordinate: CLLocationCoordinate2D?
     static var isConfigured: Bool {
         guard let key = Bundle.main.object(forInfoDictionaryKey: "BaiduMapAK") as? String else { return false }
         return !key.isEmpty
@@ -55,5 +57,7 @@ struct BaiduRouteMap: UIViewRepresentable {
             [NSNumber(value: $0.latitude), NSNumber(value: $0.longitude)]
         }
         view.renderSegments(segments, playback: playback)
+        let live: [NSNumber]? = liveCoordinate.map { [NSNumber(value: $0.latitude), NSNumber(value: $0.longitude)] }
+        view.setLivePosition(live, follow: followVehicle)
     }
 }
