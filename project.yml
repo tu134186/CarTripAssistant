@@ -18,3 +18,4 @@ targets:
         INFOPLIST_FILE: CarTripAssistant/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
+        SWIFT_OBJC_BRIDGING_HEADER: CarTripAssistant/BaiduMap-Bridging-Header.h
