@@ -98,6 +98,15 @@ static BOOL started = NO;
         [self.map removeAnnotation:self.vehicle];self.vehicle=nil;
     }
 }
+- (void)followPlaybackPosition:(NSArray<NSNumber *> *)position {
+    if (!self.map || position.count != 2) return;
+    CLLocationCoordinate2D target = [self baidu:position];
+    CLLocation *center = [[CLLocation alloc] initWithLatitude:self.map.centerCoordinate.latitude longitude:self.map.centerCoordinate.longitude];
+    CLLocation *vehicle = [[CLLocation alloc] initWithLatitude:target.latitude longitude:target.longitude];
+    if ([center distanceFromLocation:vehicle] > 25) {
+        [self.map setCenterCoordinate:target animated:YES];
+    }
+}
 - (void)setLivePosition:(NSArray<NSNumber *> *)position follow:(BOOL)follow {
     if (!self.map) return;
     if (position.count != 2) {
