@@ -1742,7 +1742,10 @@ private struct RouteDetail: View {
     var embedded = false
     @EnvironmentObject private var store: TripStore
     private let initialShift: Shift
-    init(shift: Shift) { self.initialShift = shift }
+    init(shift: Shift, embedded: Bool = false) {
+        self.initialShift = shift
+        self.embedded = embedded
+    }
     // NavigationLink captures a value snapshot. Read the current published
     // shift on every render so GPS points keep updating while this page stays open.
     private var shift: Shift {
