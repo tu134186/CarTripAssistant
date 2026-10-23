@@ -1707,7 +1707,8 @@ private struct RouteDetail: View {
     // Replay uses recorded timestamps, not the number of GPS points.
     // A missing GPS second is never presented as a genuine recorded fix.
     @State private var replayElapsed: TimeInterval = 0
-    private let replayTimer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+    private let replayTimer = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
+    @State private var replayLastTick: Date? = nil
     private var replayCount: Int { shift.points.count }
     private var replayDuration: TimeInterval {
         guard let first = shift.points.first, let last = shift.points.last else { return 0 }
@@ -1755,11 +1756,6 @@ private struct RouteDetail: View {
                          playbackCoordinate: playbackCoordinate,
                          satelliteMode: satelliteMode)
                 .id(mapRevision)
-                .onReceive(replayTimer) { _ in
-                    guard replayRunning else { return }
-                    replayElapsed = min(replayDuration, replayElapsed + 0.1 * Double(replaySpeed))
-                    if replayElapsed >= replayDuration { replayRunning = false }
-                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack {
                 Button(satelliteMode ? "标准地图" : "卫星地图") { satelliteMode.toggle() }
@@ -1890,6 +1886,19 @@ private struct RouteDetail: View {
         .navigationTitle("行驶足迹")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
+        .onReceive(replayTimer) { now in
+            guard replayRunning else {
+                replayLastTick = nil
+                return
+            }
+            let delta = replayLastTick.map { max(0, min(2, now.timeIntervalSince($0))) } ?? 0.25
+            replayLastTick = now
+            replayElapsed = min(replayDuration, replayElapsed + delta * Double(replaySpeed))
+            if replayElapsed >= replayDuration {
+                replayRunning = false
+                replayLastTick = nil
+            }
+        }
     }
 }
 
