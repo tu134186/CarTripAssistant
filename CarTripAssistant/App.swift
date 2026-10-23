@@ -1851,16 +1851,6 @@ private struct HistoryReportDetail: View {
                 if !shift.notes.isEmpty {
                     panel("备注") { Text(shift.notes).font(.subheadline) }
                 }
-                NavigationLink {
-                    FullscreenJourneyMap(shift: shift)
-                } label: {
-                    Label("查看完整轨迹地图", systemImage: "map.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(16)
-                        .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(.white)
-                }
             }
             .padding(16)
         }
