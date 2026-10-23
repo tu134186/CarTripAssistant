@@ -10,6 +10,9 @@
 @property(nonatomic,strong) BMKPolyline *route;
 @property(nonatomic,strong) BMKPointAnnotation *vehicle;
 @property(nonatomic,assign) BOOL fitted;
+@property(nonatomic,strong) BMKPointAnnotation *startPin;
+@property(nonatomic,strong) BMKPointAnnotation *endPin;
+@property(nonatomic,strong) NSArray<NSArray<NSNumber *> *> *lastPairs;
 @end
 
 @implementation BaiduMapHostView
@@ -46,10 +49,20 @@ static BOOL started = NO;
 - (void)renderCoordinates:(NSArray<NSArray<NSNumber *> *> *)coordinates
                 playback:(NSArray<NSNumber *> *)playback {
     if (!self.map) return;
-    if (self.previousCoordinates != coordinates) {
+    BOOL changed = ![self.lastPairs isEqualToArray:coordinates];
+    if (changed) {
+        self.lastPairs = [coordinates copy];
         if (self.route) { [self.map removeOverlay:self.route]; self.route = nil; }
         self.previousCoordinates = coordinates;
         NSUInteger count = coordinates.count;
+        if (count) {
+            CLLocationCoordinate2D first = [self baidu:coordinates.firstObject];
+            CLLocationCoordinate2D last = [self baidu:coordinates.lastObject];
+            if (!self.startPin) { self.startPin = [BMKPointAnnotation new]; self.startPin.title = @"起点"; [self.map addAnnotation:self.startPin]; }
+            if (!self.endPin) { self.endPin = [BMKPointAnnotation new]; self.endPin.title = @"终点 / 最新位置"; [self.map addAnnotation:self.endPin]; }
+            self.startPin.coordinate = first;
+            self.endPin.coordinate = last;
+        }
         if (count > 1) {
             CLLocationCoordinate2D *coords = calloc(count, sizeof(CLLocationCoordinate2D));
             for (NSUInteger i = 0; i < count; i++) coords[i] = [self baidu:coordinates[i]];
