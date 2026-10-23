@@ -67,6 +67,17 @@ struct BaiduRouteMap: UIViewRepresentable {
             current.append([NSNumber(value: point.lat), NSNumber(value: point.lon)])
             previous = point
         }
+        // Extend the visible stroke to the interpolated playback position.
+        // Do not draw across a GPS recording gap or a segment boundary.
+        if replayActive, let cursor = playbackCoordinate,
+           let last = shift.points.last,
+           current.count > 0 {
+            let lastLocation = CLLocation(latitude: last.lat, longitude: last.lon)
+            let cursorLocation = CLLocation(latitude: cursor.latitude, longitude: cursor.longitude)
+            if lastLocation.distance(from: cursorLocation) > 0.3 {
+                current.append([NSNumber(value: cursor.latitude), NSNumber(value: cursor.longitude)])
+            }
+        }
         flush()
         let playback: [NSNumber]? = playbackCoordinate.map {
             [NSNumber(value: $0.latitude), NSNumber(value: $0.longitude)]
