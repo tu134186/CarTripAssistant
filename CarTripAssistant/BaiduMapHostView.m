@@ -105,9 +105,11 @@ static BOOL started = NO;
     CLLocationCoordinate2D target = [self baidu:position];
     CLLocation *center = [[CLLocation alloc] initWithLatitude:self.map.centerCoordinate.latitude longitude:self.map.centerCoordinate.longitude];
     CLLocation *vehicle = [[CLLocation alloc] initWithLatitude:target.latitude longitude:target.longitude];
-    if ([center distanceFromLocation:vehicle] > 25) {
-        [self.map setCenterCoordinate:target animated:YES];
-    }
+    // Replay uses a fixed viewport, matching Apple MapKit's overview behavior.
+    // Keep the car annotation moving but never recenter the map on every tick.
+    // Users may pan and zoom manually without the map snapping back.
+    (void)center;
+    (void)vehicle;
 }
 - (void)setLivePosition:(NSArray<NSNumber *> *)position follow:(BOOL)follow {
     if (!self.map) return;
