@@ -738,13 +738,14 @@ struct Dashboard: View {
         ZStack {
             Cockpit.background.ignoresSafeArea()
             VStack(spacing: 0) {
-                if selectedTab == 0 {
-                    header
-                        .padding(.horizontal, 18)
-                        .padding(.top, 12)
-                        .padding(.bottom, 14)
-                        .background(Cockpit.background)
-                }
+                header
+                    .padding(.horizontal, 18)
+                    .frame(height: 78)
+                    .frame(maxWidth: .infinity)
+                    .background(Cockpit.background)
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(Cockpit.blue.opacity(0.10)).frame(height: 1)
+                    }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         if selectedTab == 0 {
@@ -927,11 +928,12 @@ struct Dashboard: View {
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("行程助手").font(.system(size: 25, weight: .bold))
-                Text("记录每一趟行程 · 让工作更清晰")
+                Text(["行程助手", "行驶足迹", "驾驶工具", "行程记录"][selectedTab]).font(.system(size: 25, weight: .bold))
+                Text(["记录每一趟行程 · 让工作更清晰", "查看轨迹 · 分段回放", "统计 · 定位 · 备份 · 诊断", "查询历史行程"][selectedTab])
                     .font(.system(size: 11)).foregroundStyle(Cockpit.muted)
             }
             Spacer()
+            if selectedTab == 0 {
             VStack(alignment: .trailing, spacing: 5) {
                 Text(Date().formatted(.dateTime.month().day()))
                     .font(.system(size: 12, weight: .semibold))
@@ -946,6 +948,7 @@ struct Dashboard: View {
                         .background(store.active == nil ? Cockpit.green : Color.red, in: Capsule())
                 }
                 .buttonStyle(.plain)
+            }
             }
         }
         .foregroundStyle(.primary)
@@ -1862,11 +1865,7 @@ private struct RouteDetail: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            if embedded {
-                Text("行驶足迹").font(.system(size: 23, weight: .bold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 10).padding(.bottom, 10)
-            }
+
             HStack(spacing: 10) {
                 Text("地图").font(.caption).foregroundStyle(Cockpit.muted)
                 Picker("地图来源", selection: $routeMapProvider) {
