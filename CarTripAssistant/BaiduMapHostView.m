@@ -128,6 +128,26 @@ static BOOL started = NO;
         }
     }
 }
+- (BMKAnnotationView *)mapView:(BMKMapView *)mapView viewForAnnotation:(id<BMKAnnotation>)annotation {
+    if (annotation != self.vehicle) return nil;
+    static NSString *reuseID = @"CarTripReplayVehicle";
+    BMKAnnotationView *view = [mapView dequeueReusableAnnotationViewWithIdentifier:reuseID];
+    if (!view) {
+        view = [[BMKAnnotationView alloc] initWithAnnotation:annotation reuseIdentifier:reuseID];
+        UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:24 weight:UIImageSymbolWeightBold];
+        UIImage *symbol = [UIImage systemImageNamed:@"car.fill" withConfiguration:config];
+        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(48, 48)];
+        view.image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+            [[UIColor colorWithRed:0.05 green:0.39 blue:0.95 alpha:1] setFill];
+            [[UIBezierPath bezierPathWithOvalInRect:CGRectMake(2, 2, 44, 44)] fill];
+            [[UIColor whiteColor] setFill];
+            [symbol drawInRect:CGRectMake(10, 12, 28, 24)];
+        }];
+        view.centerOffset = CGPointMake(0, -8);
+    }
+    view.annotation = annotation;
+    return view;
+}
 - (BMKOverlayView *)mapView:(BMKMapView *)mapView viewForOverlay:(id<BMKOverlay>)overlay {
     if ([overlay isKindOfClass:[BMKPolyline class]]) {
         BMKPolylineView *line=[[BMKPolylineView alloc] initWithPolyline:(BMKPolyline *)overlay];
