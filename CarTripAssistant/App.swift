@@ -1813,9 +1813,10 @@ private struct RouteDetail: View {
     private var effectiveReplaySpeed: Double {
         replaySpeed > 0 ? Double(replaySpeed) : max(1, replayDuration / Double(-replaySpeed))
     }
-    @AppStorage("cartrip.routeMapProvider") private var routeMapProvider = "apple"
+    @AppStorage("cartrip.routeMapProvider") private var routeMapProvider = "baidu"
     @AppStorage("cartrip.baiduPrivacyConsent") private var baiduPrivacyConsent = false
     @State private var satelliteMode = false
+    @State private var followVehicle = false
     // Replay uses recorded timestamps, not the number of GPS points.
     // A missing GPS second is never presented as a genuine recorded fix.
     @State private var replayElapsed: TimeInterval = 0
@@ -1872,6 +1873,10 @@ private struct RouteDetail: View {
                 }.pickerStyle(.segmented)
             }
             .padding(.horizontal, 14).padding(.vertical, 6)
+            if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
+                Toggle("跟随车辆", isOn: $followVehicle)
+                    .font(.caption).padding(.horizontal, 14)
+            }
             if routeMapProvider == "baidu" && !baiduPrivacyConsent {
                 Button("同意百度地图SDK隐私政策并启用百度地图") {
                     baiduPrivacyConsent = true
@@ -1884,7 +1889,9 @@ private struct RouteDetail: View {
             Group {
                 if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
                     BaiduRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
-                                  playbackCoordinate: playbackCoordinate)
+                                  playbackCoordinate: playbackCoordinate,
+                                  followVehicle: followVehicle,
+                                  liveCoordinate: store.latestGPSLocation?.coordinate)
                 } else {
                     TripRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
                                  playbackCoordinate: playbackCoordinate,
