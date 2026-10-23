@@ -969,7 +969,6 @@ struct Dashboard: View {
             .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
             DisclosureGroup(isExpanded: $statsExpanded) {
                 VStack(alignment: .leading, spacing: 12) {
-                    .font(.headline).foregroundStyle(Cockpit.green)
                 let shifts = store.history + (store.active.map { [$0] } ?? [])
                 let calendar = Calendar.current
                 let today = shifts.filter { calendar.isDateInToday($0.started) }
@@ -1030,7 +1029,6 @@ struct Dashboard: View {
                 }.pickerStyle(.menu)
                 Text("连续低速且不处于载客、休息状态时，达到设定时间后开始计算等客时间。")
                     .font(.caption).foregroundStyle(Cockpit.muted)
-                    .font(.headline).foregroundStyle(Cockpit.green)
                 toolRow("运营状态", store.active == nil ? "未出车" : (riding ? "载客中" : (resting ? "手动休息中" : "出车中")))
                 toolRow("运动识别", store.motionStatus)
                 if let shift = store.active {
@@ -1054,7 +1052,6 @@ struct Dashboard: View {
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             DisclosureGroup(isExpanded: $backupExpanded) {
                 VStack(alignment: .leading, spacing: 12) {
-                    .font(.headline).foregroundStyle(.purple)
                 Text("导出包含历史日报、流水、轨迹及当前出车状态的 JSON 备份文件。")
                     .font(.subheadline).foregroundStyle(Cockpit.muted)
                 Button {
@@ -1094,7 +1091,6 @@ struct Dashboard: View {
             .padding(16).background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 18))
             DisclosureGroup(isExpanded: $diagnosticsExpanded) {
                 VStack(alignment: .leading, spacing: 12) {
-                    .font(.headline).foregroundStyle(.orange)
                 toolRow("历史记录", "\(store.history.count) 条")
                 toolRow("最近定位距今", store.gpsLastUpdate.map { "\(Int(max(0, Date().timeIntervalSince($0)))) 秒" } ?? "暂无")
                 toolRow("本次启动收到定位", "\(store.gpsReceivedCount) 个")
