@@ -1753,23 +1753,12 @@ private struct ShareJourneyCard: View {
                     Spacer()
                     Image(systemName: "car.side.fill").font(.title2).foregroundStyle(Cockpit.blue)
                 }
-                NavigationLink {
-                    FullscreenJourneyMap(shift: shift)
-                } label: {
-                    ZStack(alignment: .bottomTrailing) {
-                        TripRouteMap(shift: shift)
-                            .frame(height: 250)
-                            .allowsHitTesting(false)
-                        Text("点击放大 · 旋转地图")
-                            .font(.caption.bold())
-                            .padding(9)
-                            .foregroundStyle(.white)
-                            .background(.black.opacity(0.65), in: Capsule())
-                            .padding(10)
-                    }
+                TripRouteMap(shift: shift, interactive3D: true)
+                    .frame(height: 250)
                     .clipShape(RoundedRectangle(cornerRadius: 15))
-                }
-                .buttonStyle(.plain)
+                Text("直接在地图上双指缩放、旋转、倾斜；单指拖动")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Cockpit.muted)
                 HStack(spacing: 12) {
                     Label("全天轨迹", systemImage: "line.diagonal").foregroundStyle(Cockpit.blue)
                     Label("载客路段", systemImage: "line.diagonal").foregroundStyle(Cockpit.green)
