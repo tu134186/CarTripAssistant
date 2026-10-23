@@ -42,8 +42,8 @@ jobs:
           p='CarTripAssistant/Info.plist'
           with open(p,'rb') as f: info=plistlib.load(f)
           assert info.get('CFBundleShortVersionString'), 'Uploaded source missing app version'
-          info['CFBundleShortVersionString']='3.1.7'
-          info['CFBundleVersion']='3107'
+          info['CFBundleShortVersionString']='3.1.8'
+          info['CFBundleVersion']='3108'
           with open(p,'wb') as f: plistlib.dump(info,f)
           PY
       - name: Publish optional Shenzhen map separately
@@ -102,7 +102,7 @@ jobs:
           xcodebuild -workspace CarTripAssistant.xcworkspace -scheme CarTripAssistant -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/CarTripAssistant.app Payload/
-          zip -qry CarTripAssistant-V3.1.7-unsigned.ipa Payload
+          zip -qry CarTripAssistant-V3.1.8-unsigned.ipa Payload
           python3 - <<'PY'
           import plistlib
           p='CarTripAssistant/Info.plist'
@@ -114,35 +114,35 @@ jobs:
         run: |
           python3 - <<'PY'
           import zipfile,plistlib
-          ipa='CarTripAssistant-V3.1.7-unsigned.ipa'
+          ipa='CarTripAssistant-V3.1.8-unsigned.ipa'
           with zipfile.ZipFile(ipa) as z:
               names=z.namelist()
               info=plistlib.loads(z.read('Payload/CarTripAssistant.app/Info.plist'))
-              assert info.get('CFBundleShortVersionString')=='3.1.7', info.get('CFBundleShortVersionString')
+              assert info.get('CFBundleShortVersionString')=='3.1.8', info.get('CFBundleShortVersionString')
               assert 'Payload/CarTripAssistant.app/Assets.car' in names, 'Compiled asset catalog missing'
               icon=info.get('CFBundleIcons',{}).get('CFBundlePrimaryIcon',{})
               assert icon.get('CFBundleIconName')=='AppIcon' or icon.get('CFBundleIconFiles'), 'No primary icon metadata'
-              print('Verified V3.1.7 and compiled AppIcon metadata')
+              print('Verified V3.1.8 and compiled AppIcon metadata')
           PY
       - name: Verify map excluded from IPA
         run: |
           python3 - <<'PY'
           import zipfile
-          with zipfile.ZipFile('CarTripAssistant-V3.1.7-unsigned.ipa') as z:
+          with zipfile.ZipFile('CarTripAssistant-V3.1.8-unsigned.ipa') as z:
               assert not any(n.endswith('.mbtiles') for n in z.namelist()), 'Map unexpectedly bundled'
           print('Verified lightweight IPA without map tiles')
           PY
-      - name: Package V3.1.7 source archive
+      - name: Package V3.1.8 source archive
         run: |
-          zip -qry "V3.1.7-行程助手-源码.zip" CarTripAssistant scripts project.yml Podfile README.md
-          unzip -t "V3.1.7-行程助手-源码.zip" | tail -1
+          zip -qry "V3.1.8-行程助手-源码.zip" CarTripAssistant scripts project.yml Podfile README.md
+          unzip -t "V3.1.8-行程助手-源码.zip" | tail -1
       - uses: actions/upload-artifact@v4
         with:
-          name: V3.1.7-行程助手-源码
-          path: V3.1.7-行程助手-源码.zip
+          name: V3.1.8-行程助手-源码
+          path: V3.1.8-行程助手-源码.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: CarTripAssistant-V3.1.7-unsigned-IPA
-          path: CarTripAssistant-V3.1.7-unsigned.ipa
+          name: CarTripAssistant-V3.1.8-unsigned-IPA
+          path: CarTripAssistant-V3.1.8-unsigned.ipa
           if-no-files-found: error
