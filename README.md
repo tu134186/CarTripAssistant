@@ -1,8 +1,8 @@
 # 行程助手 CarTripAssistant
 
-当前版本：**V3.1.8 / Build 3108**（iOS 16.0+）
+当前版本：**V3.1.9 / Build 3109**（iOS 16.0+）
 
-版本一致性：云编译 IPA Info.plist、IPA 文件名、源码归档和 GitHub Artifacts 均使用 V3.1.8；Build 号 3108。
+版本一致性：云编译 IPA Info.plist、IPA 文件名、源码归档和 GitHub Artifacts 均使用 V3.1.9；Build 号 3109。
 
 V2.5.3：在 V2.4.7 基础上同步 App、云编译、IPA、源码包和说明版本号；保留此前外观模式与轨迹回放修改。尚待云编译和真机验证。
 
@@ -78,26 +78,26 @@ V3.0.0 / Build 3000：新增轨迹页苹果/百度地图选择；百度地图SDK
 - 保留底部轨迹按钮直达完整轨迹详情；未改 GPS、里程和回放。
 
 
-## V3.1.8 / Build 3108 — 修复轨迹按钮无响应
+## V3.1.9 / Build 3109 — 修复轨迹按钮无响应
 
 - 将 navigationDestination 修饰符从 NavigationStack 外部移动到 NavigationStack 内部根视图，保证轨迹按钮的导航目标能被正确注册。
 - 底部轨迹按钮仍直接进入 RouteDetail，不显示预览页面；保持 iOS 16 兼容。
 
-## V3.1.8 / Build 3108 — 全天记录与操作简化
+## V3.1.9 / Build 3109 — 全天记录与操作简化
 - 出车至收车持续记录有效 GPS 轨迹与移动距离，允许步行；休息按钮不再阻断采样与里程。
 - 总休息时间=出车时长-载客时长；空驶里程=总里程-载客里程；乘客上下车统计保持不变。
 - 首页保留七张彩色统计卡，右上角统一出车/收车；删除三种休息操作，仅保留乘客上下车按钮。
 - 轨迹回放动画刷新由 0.25 秒提升到 0.1 秒，仍使用原始 GPS 时间轴及线性插值；百度地图镜头控制待真机效果验证。
 - 保留历史记录及旧休息数据，新的统计不依赖旧休息分类；需 GitHub Actions 编译及真机验证。
 
-## V3.1.8 / Build 3108 — 四页固定导航与弹性滚动
+## V3.1.9 / Build 3109 — 四页固定导航与弹性滚动
 - 轨迹改为底部第二个真正的 Tab，不再进入带 Back 的二级 Navigation 页面。
 - 四个菜单固定在安全区域底部；各页面在独立 ScrollView 中原生弹性回弹，地图保持独立手势。
 - 轨迹地图限制为 440pt 高，地图下方的回放控件在同一内容滚动区域，避免遮挡底部菜单。
 - 不修改 GPS、订单、里程和历史存储。
 
-## V3.1.8 / Build 3108 — 修复轨迹页初始化编译错误
+## V3.1.9 / Build 3109 — 修复轨迹页初始化编译错误
 - RouteDetail 原本只有 init(shift:)，V3.1.1 新增调用 embedded: 参数导致编译器报 extra argument。现在显式支持 init(shift:embedded:) 且默认 false，兼容历史详情页。
 
-## V3.1.8 / Build 3108 — 修复 Dashboard 缺失右花括号
+## V3.1.9 / Build 3109 — 修复 Dashboard 缺失右花括号
 - 修复轨迹 Tab 改造后 NavigationStack 的闭合括号遗漏，导致 header/toolsPage/bottomTabs 等 private 成员被错误解析为局部声明。
