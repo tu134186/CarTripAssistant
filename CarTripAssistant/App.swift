@@ -1326,7 +1326,9 @@ struct Dashboard: View {
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 13) {
             HStack {
-                Text("历史日报").font(.system(size: 18, weight: .bold))
+                Label("历史日报", systemImage: "calendar.badge.clock")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(Cockpit.blue)
                 Spacer()
                 Text("\(store.history.count) 条记录")
                     .font(.caption).foregroundStyle(Cockpit.muted)
@@ -1732,6 +1734,7 @@ private struct RouteDetail: View {
     @State private var mapRevision = 0
     @StateObject private var mapDownload = ShenzhenMapDownload()
     @State private var mapError: String?
+    @State private var showDiagnostics = false
     @State private var replayRunning = false
     @State private var replaySpeed = 1
     @State private var satelliteMode = false
@@ -1827,23 +1830,25 @@ private struct RouteDetail: View {
                         .font(.caption.bold())
                 }.padding(.horizontal, 15)
             }
-            Text(routeQualityCheck)
+            DisclosureGroup(isExpanded: $showDiagnostics) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(routeQualityCheck)
+                    Text(routeLengthCheck)
+                    Text(routeGPSCheck)
+                }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 15)
-            Text(routeLengthCheck)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 15)
-                .padding(.top, 6)
-            Text(routeGPSCheck)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 15)
-                .padding(.top, 6)
+                .padding(.top, 8)
+            } label: {
+                Label("GPS 轨迹诊断", systemImage: "waveform.path.ecg")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Cockpit.blue)
+            }
+            .padding(13)
+            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
             if replayCount > 1 {
                 VStack(spacing: 7) {
                     HStack {
