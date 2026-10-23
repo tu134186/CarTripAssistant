@@ -1880,7 +1880,7 @@ private struct RouteDetail: View {
                         Button("重置") { replayRunning = false; replayElapsed = 0; replayMode = false }
                             .buttonStyle(.bordered)
                         Spacer(minLength: 0)
-                        Picker("速度", selection: $replaySpeed) {
+                        Picker(selection: $replaySpeed) {
                             Text("1×").tag(1)
                             Text("2×").tag(2)
                             Text("5×").tag(5)
