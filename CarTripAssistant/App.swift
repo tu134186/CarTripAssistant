@@ -682,6 +682,7 @@ struct TrackPoint: Codable {
     var body: some Scene {
         WindowGroup {
             Dashboard().environmentObject(store)
+                .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         }
         .onChange(of: scenePhase) { phase in
             if phase == .inactive || phase == .background {
@@ -691,16 +692,25 @@ struct TrackPoint: Codable {
     }
 }
 
+private enum ThemePreference {
+    static func scheme(_ value: String) -> ColorScheme? {
+        switch value { case "day": return .light; case "night": return .dark; default: return nil }
+    }
+}
 private enum Cockpit {
-    static let background = Color(red: 0.045, green: 0.071, blue: 0.12)
-    static let panel = Color(red: 0.085, green: 0.13, blue: 0.21)
-    static let secondary = Color(red: 0.12, green: 0.18, blue: 0.28)
-    static let blue = Color(red: 0.19, green: 0.48, blue: 1)
-    static let muted = Color(red: 0.61, green: 0.70, blue: 0.83)
-    static let green = Color(red: 0.26, green: 0.88, blue: 0.65)
+    private static func adaptive(_ light: UIColor, _ dark: UIColor) -> Color {
+        Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    }
+    static let background = adaptive(UIColor(red: 0.95, green: 0.97, blue: 0.99, alpha: 1), UIColor(red: 0.045, green: 0.071, blue: 0.12, alpha: 1))
+    static let panel = adaptive(.white, UIColor(red: 0.085, green: 0.13, blue: 0.21, alpha: 1))
+    static let secondary = adaptive(UIColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1), UIColor(red: 0.12, green: 0.18, blue: 0.28, alpha: 1))
+    static let blue = adaptive(UIColor(red: 0.06, green: 0.35, blue: 0.84, alpha: 1), UIColor(red: 0.19, green: 0.48, blue: 1, alpha: 1))
+    static let muted = adaptive(UIColor(red: 0.29, green: 0.37, blue: 0.48, alpha: 1), UIColor(red: 0.61, green: 0.70, blue: 0.83, alpha: 1))
+    static let green = adaptive(UIColor(red: 0.04, green: 0.52, blue: 0.33, alpha: 1), UIColor(red: 0.26, green: 0.88, blue: 0.65, alpha: 1))
 }
 struct Dashboard: View {
     @EnvironmentObject private var store: TripStore
+    @AppStorage("cartrip.appearance") private var appearance = "auto"
     @State private var revenue = ""
     @State private var notes = ""
     @State private var showFinish = false
@@ -794,7 +804,7 @@ struct Dashboard: View {
         .alert("数据恢复", isPresented: Binding(get: { restoreNotice != nil }, set: { if !$0 { restoreNotice = nil } })) {
             Button("确定", role: .cancel) { restoreNotice = nil }
         } message: { Text(restoreNotice ?? "") }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(ThemePreference.scheme(appearance))
         .sheet(item: Binding(
             get: { gpxExport.map { ExportItem(url: $0) } },
             set: { if $0 == nil { gpxExport = nil } }
@@ -923,6 +933,17 @@ struct Dashboard: View {
     }
     private var toolsPage: some View {
         VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("外观设置", systemImage: "sun.max.fill").font(.headline)
+                Picker("显示模式", selection: $appearance) {
+                    Text("自动").tag("auto")
+                    Text("白天").tag("day")
+                    Text("夜间").tag("night")
+                }.pickerStyle(.segmented)
+                Text("自动模式跟随 iPhone 系统外观").font(.caption).foregroundStyle(Cockpit.muted)
+            }
+            .padding(14)
+            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
             Text("驾驶工具箱").font(.system(size: 23, weight: .bold))
             Text("定位诊断 · 停车识别 · 行程备份与恢复 · 里程统计")
                 .font(.caption).foregroundStyle(Cockpit.muted)
