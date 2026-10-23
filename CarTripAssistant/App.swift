@@ -363,16 +363,21 @@ struct TrackPoint: Codable {
         previous = point
     }
     private func shouldSaveTrackPoint(_ point: CLLocation) -> Bool {
+        // Keep collecting GPS while parked, but reject stationary coordinate jitter.
         guard let last = lastSavedLocation else { return true }
-        let meters = point.distance(from: last)
         let elapsed = point.timestamp.timeIntervalSince(last.timestamp)
-        guard elapsed > 0 else { return false }
-        // Record near-1-second real GPS fixes while driving, not fabricated points.
-        // Core Location decides the callback frequency.
-        let moving = point.speed >= 0.5 || (previous?.speed ?? -1) >= 0.5 || meters >= max(4, point.horizontalAccuracy * 0.35)
-        if moving { return elapsed >= 0.8 && meters >= 1.0 }
-        // Do not draw stationary GPS jitter as a road.
-        return elapsed >= 10 && meters >= max(5, point.horizontalAccuracy * 0.6)
+        guard elapsed >= 0.8 else { return false }
+        let meters = point.distance(from: last)
+        let accuracy = max(point.horizontalAccuracy, last.horizontalAccuracy)
+        let recentSpeed = previous?.speed ?? -1
+        let credibleDriving = point.speed >= 1.5 || (point.speed >= 0 && recentSpeed >= 1.5)
+        if credibleDriving {
+            return meters >= max(2.0, min(8.0, accuracy * 0.25))
+        }
+        if point.speed < 0 && recentSpeed < 0 {
+            return meters >= max(15.0, accuracy * 1.5) && meters / elapsed >= 1.5
+        }
+        return false
     }
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
@@ -507,7 +512,7 @@ struct TrackPoint: Codable {
             // manual breaks are still excluded from vehicle mileage above.
             // Even on a manual break, keep an accurate map trace; the mileage
             // calculation above still excludes break and walking movement.
-            if needsNewTrackSegment || shouldSaveTrackPoint(point) {
+            if (shift.points.isEmpty || shouldSaveTrackPoint(point)) && !breakActive && !walking {
                 shift.points.append(TrackPoint(lat: point.coordinate.latitude, lon: point.coordinate.longitude,
                                               date: point.timestamp, accuracy: point.horizontalAccuracy, speed: point.speed,
                                               segmentStart: needsNewTrackSegment))
