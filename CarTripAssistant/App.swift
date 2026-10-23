@@ -1891,6 +1891,7 @@ private struct RouteDetail: View {
                     BaiduRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
                                   playbackCoordinate: playbackCoordinate,
                                   followVehicle: followVehicle,
+                                  replayActive: replayRunning || replayElapsed > 0,
                                   liveCoordinate: store.latestGPSLocation?.coordinate)
                 } else {
                     TripRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
