@@ -726,7 +726,6 @@ struct Dashboard: View {
     @State private var deletionTarget: UUID?
     @State private var gpxExport: URL?
     @State private var selectedTab = 0
-    @State private var showCurrentRoute = false
     @State private var showRestorePicker = false
     @State private var restoreNotice: String?
     @State private var confirmRestore = false
@@ -758,6 +757,17 @@ struct Dashboard: View {
                                 mileageCard(idleShift)
                                 idleMetrics
                             }
+                        } else if selectedTab == 1 {
+                            if let shift = store.active {
+                                RouteDetail(shift: shift, embedded: true)
+                            } else {
+                                VStack(spacing: 12) {
+                                    Image(systemName: "map").font(.system(size: 36)).foregroundStyle(Cockpit.blue)
+                                    Text("暂无行驶轨迹").font(.headline)
+                                    Text("开始出车后可查看实时轨迹").font(.subheadline).foregroundStyle(Cockpit.muted)
+                                }
+                                .frame(maxWidth: .infinity).padding(.vertical, 65)
+                            }
                         } else if selectedTab == 2 {
                             toolsPage
                         } else {
@@ -773,22 +783,13 @@ struct Dashboard: View {
                     .padding(.top, 12)
                     .padding(.bottom, 26)
                 }
+                .scrollBounceBehavior(.always)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
                 bottomTabs
             }
         }
-        .navigationDestination(isPresented: $showCurrentRoute) {
-            if let shift = store.active {
-                RouteDetail(shift: shift)
-            } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "map").font(.system(size: 36)).foregroundStyle(Cockpit.blue)
-                    Text("暂无行驶轨迹").font(.headline)
-                    Text("开始出车后可查看实时轨迹").font(.subheadline).foregroundStyle(Cockpit.muted)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        }
+
         .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json]) { result in
             switch result {
             case .success(let url):
@@ -1148,14 +1149,15 @@ struct Dashboard: View {
     private var bottomTabs: some View {
         HStack(spacing: 0) {
             tab("首页", "house.fill", index: 0)
-            Button { showCurrentRoute = true } label: {
+            Button { selectedTab = 1 } label: {
                 VStack(spacing: 5) {
                     Image(systemName: "map.fill").font(.system(size: 20))
                     Text("轨迹").font(.system(size: 11, weight: .medium))
                 }
-                .foregroundStyle(Cockpit.muted)
+                .foregroundStyle(selectedTab == 1 ? Color.white : Cockpit.muted)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
+                .background(selectedTab == 1 ? Cockpit.blue : Color.clear, in: RoundedRectangle(cornerRadius: 15))
             }
             .buttonStyle(.plain)
             tab("工具", "wrench.and.screwdriver.fill", index: 2)
@@ -1737,6 +1739,7 @@ private struct ShareJourneyCard: View {
     }
 }
 private struct RouteDetail: View {
+    var embedded = false
     @EnvironmentObject private var store: TripStore
     private let initialShift: Shift
     init(shift: Shift) { self.initialShift = shift }
@@ -1857,6 +1860,11 @@ private struct RouteDetail: View {
     }
     var body: some View {
         VStack(spacing: 0) {
+            if embedded {
+                Text("行驶足迹").font(.system(size: 23, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10).padding(.bottom, 10)
+            }
             HStack(spacing: 10) {
                 Text("地图").font(.caption).foregroundStyle(Cockpit.muted)
                 Picker("地图来源", selection: $routeMapProvider) {
@@ -1892,7 +1900,9 @@ private struct RouteDetail: View {
                 }
             }
                 .id(mapRevision)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+                .frame(height: embedded ? 440 : max(420, UIScreen.main.bounds.height * 0.52))
+                .clipped()
             HStack {
                 Button(satelliteMode ? "标准地图" : "卫星地图") { satelliteMode.toggle() }
                     .font(.caption.bold())
@@ -2031,7 +2041,7 @@ private struct RouteDetail: View {
         )) {
             Button("确定") { mapError = nil }
         } message: { Text(mapError ?? "") }
-        .navigationTitle("行驶足迹")
+        .navigationTitle(embedded ? "" : "行驶足迹")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         .onReceive(replayTimer) { now in
