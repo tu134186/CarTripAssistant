@@ -13,6 +13,8 @@
 @property(nonatomic,strong) BMKPointAnnotation *startPin;
 @property(nonatomic,strong) BMKPointAnnotation *endPin;
 @property(nonatomic,strong) NSArray<NSArray<NSNumber *> *> *lastPairs;
+@property(nonatomic,strong) NSArray<NSDictionary *> *lastSegments;
+@property(nonatomic,strong) NSMutableArray<BMKPolyline *> *passengerLines;
 @end
 
 @implementation BaiduMapHostView
@@ -96,10 +98,59 @@ static BOOL started = NO;
         [self.map removeAnnotation:self.vehicle]; self.vehicle=nil;
     }
 }
+- (void)renderSegments:(NSArray<NSDictionary *> *)segments playback:(NSArray<NSNumber *> *)playback {
+    if (!self.map) return;
+    if (![self.lastSegments isEqualToArray:segments]) {
+        self.lastSegments = [segments copy];
+        if (self.passengerLines.count) {
+            for (BMKPolyline *line in self.passengerLines) [self.map removeOverlay:line];
+        }
+        if (self.route) { [self.map removeOverlay:self.route]; self.route = nil; }
+        self.passengerLines = [NSMutableArray array];
+        NSMutableArray<NSArray<NSNumber *> *> *all = [NSMutableArray array];
+        for (NSDictionary *entry in segments) {
+            NSArray<NSArray<NSNumber *> *> *pairs = entry[@"points"];
+            if (pairs.count == 0) continue;
+            [all addObjectsFromArray:pairs];
+            if (pairs.count < 2) continue;
+            CLLocationCoordinate2D *coords = calloc(pairs.count, sizeof(CLLocationCoordinate2D));
+            for (NSUInteger i=0;i<pairs.count;i++) coords[i]=[self baidu:pairs[i]];
+            BMKPolyline *line=[BMKPolyline polylineWithCoordinates:coords count:pairs.count];
+            free(coords);
+            if ([entry[@"passenger"] boolValue]) [self.passengerLines addObject:line];
+            [self.map addOverlay:line];
+        }
+        if (all.count) {
+            CLLocationCoordinate2D first=[self baidu:all.firstObject], last=[self baidu:all.lastObject];
+            if (!self.startPin) { self.startPin=[BMKPointAnnotation new]; self.startPin.title=@"起点"; [self.map addAnnotation:self.startPin]; }
+            if (!self.endPin) { self.endPin=[BMKPointAnnotation new]; self.endPin.title=@"终点 / 最新位置"; [self.map addAnnotation:self.endPin]; }
+            self.startPin.coordinate=first;
+            self.endPin.coordinate=last;
+            if (!self.fitted) {
+                CLLocationDegrees minLat=90,maxLat=-90,minLon=180,maxLon=-180;
+                for (NSArray<NSNumber *> *pair in all) {
+                    CLLocationCoordinate2D p=[self baidu:pair];
+                    minLat=MIN(minLat,p.latitude);maxLat=MAX(maxLat,p.latitude);
+                    minLon=MIN(minLon,p.longitude);maxLon=MAX(maxLon,p.longitude);
+                }
+                BMKCoordinateSpan span=BMKCoordinateSpanMake(MAX(0.005,(maxLat-minLat)*1.3),MAX(0.005,(maxLon-minLon)*1.3));
+                [self.map setRegion:BMKCoordinateRegionMake(CLLocationCoordinate2DMake((minLat+maxLat)/2,(minLon+maxLon)/2),span) animated:NO];
+                self.fitted=YES;
+            }
+        }
+    }
+    if (playback.count==2) {
+        if (!self.vehicle) { self.vehicle=[BMKPointAnnotation new]; self.vehicle.title=@"回放车辆"; [self.map addAnnotation:self.vehicle]; }
+        self.vehicle.coordinate=[self baidu:playback];
+    } else if (self.vehicle) {
+        [self.map removeAnnotation:self.vehicle];self.vehicle=nil;
+    }
+}
 - (BMKOverlayView *)mapView:(BMKMapView *)mapView viewForOverlay:(id<BMKOverlay>)overlay {
     if ([overlay isKindOfClass:[BMKPolyline class]]) {
         BMKPolylineView *line=[[BMKPolylineView alloc] initWithPolyline:(BMKPolyline *)overlay];
-        line.strokeColor=[UIColor colorWithRed:0.07 green:0.48 blue:0.98 alpha:0.95];
+        BOOL passenger=[self.passengerLines containsObject:(BMKPolyline *)overlay];
+        line.strokeColor=passenger ? [UIColor colorWithRed:0.12 green:0.76 blue:0.38 alpha:0.95] : [UIColor colorWithRed:0.07 green:0.48 blue:0.98 alpha:0.95];
         line.lineWidth=5;
         return line;
     }
