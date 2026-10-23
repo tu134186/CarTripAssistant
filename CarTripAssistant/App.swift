@@ -1896,7 +1896,7 @@ private struct RouteDetail: View {
                                   replayActive: replayMode,
                                   liveCoordinate: store.latestGPSLocation?.coordinate)
                 } else {
-                    TripRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
+                    TripRouteMap(shift: replayMode ? replayShift : shift,
                                  playbackCoordinate: playbackCoordinate,
                                  satelliteMode: satelliteMode)
                 }
