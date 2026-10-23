@@ -1813,6 +1813,8 @@ private struct RouteDetail: View {
     private var effectiveReplaySpeed: Double {
         replaySpeed > 0 ? Double(replaySpeed) : max(1, replayDuration / Double(-replaySpeed))
     }
+    @AppStorage("cartrip.routeMapProvider") private var routeMapProvider = "apple"
+    @AppStorage("cartrip.baiduPrivacyConsent") private var baiduPrivacyConsent = false
     @State private var satelliteMode = false
     // Replay uses recorded timestamps, not the number of GPS points.
     // A missing GPS second is never presented as a genuine recorded fix.
@@ -1862,9 +1864,33 @@ private struct RouteDetail: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            TripRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
-                         playbackCoordinate: playbackCoordinate,
-                         satelliteMode: satelliteMode)
+            HStack(spacing: 10) {
+                Text("地图").font(.caption).foregroundStyle(Cockpit.muted)
+                Picker("地图来源", selection: $routeMapProvider) {
+                    Text("苹果地图").tag("apple")
+                    Text("百度地图").tag("baidu")
+                }.pickerStyle(.segmented)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 6)
+            if routeMapProvider == "baidu" && !baiduPrivacyConsent {
+                Button("同意百度地图SDK隐私政策并启用百度地图") {
+                    baiduPrivacyConsent = true
+                }
+                .font(.caption).padding(10)
+            }
+            if routeMapProvider == "baidu" && !BaiduRouteMap.isConfigured {
+                Text("百度地图AK未配置，自动使用苹果地图").font(.caption).foregroundStyle(Cockpit.muted)
+            }
+            Group {
+                if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
+                    BaiduRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
+                                  playbackCoordinate: playbackCoordinate)
+                } else {
+                    TripRouteMap(shift: replayElapsed == 0 && !replayRunning ? shift : replayShift,
+                                 playbackCoordinate: playbackCoordinate,
+                                 satelliteMode: satelliteMode)
+                }
+            }
                 .id(mapRevision)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack {
