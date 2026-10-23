@@ -893,25 +893,14 @@ struct Dashboard: View {
         }
         .sheet(item: $detailShift) { item in
             NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text(item.started.formatted(date: .complete, time: .omitted))
-                            .font(.title2.bold())
-                        Text("今日流水").foregroundStyle(Cockpit.muted)
-                        Text(item.revenue.isEmpty ? "未填写" : "¥" + item.revenue)
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundStyle(Cockpit.green)
-                        Text(store.report(item))
-                            .font(.system(size: 14, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        if !item.notes.isEmpty { Text("备注：" + item.notes).foregroundStyle(Cockpit.muted) }
+                HistoryReportDetail(shift: item)
+                    .navigationTitle("历史日报详情")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("完成") { detailShift = nil }
+                        }
                     }
-                    .padding(20)
-                }
-                .background(Cockpit.background)
-                .navigationTitle("历史日报详情")
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { detailShift = nil } } }
             }
             .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
         }
@@ -1813,6 +1802,80 @@ private struct ShareJourneyCard: View {
         .navigationTitle("行程分享卡")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(ThemePreference.scheme(UserDefaults.standard.string(forKey: "cartrip.appearance") ?? "auto"))
+    }
+}
+private struct HistoryReportDetail: View {
+    let shift: Shift
+    private func clock(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        return String(format: "%02d:%02d", total / 3600, (total / 60) % 60)
+    }
+    private func row(_ name: String, _ value: String) -> some View {
+        HStack {
+            Text(name).foregroundStyle(Cockpit.muted)
+            Spacer(minLength: 12)
+            Text(value).fontWeight(.semibold)
+                .multilineTextAlignment(.trailing)
+        }
+        .font(.subheadline)
+        .padding(.vertical, 5)
+    }
+    private func panel<Content: View>(_ name: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(name).font(.headline).foregroundStyle(Cockpit.blue)
+            content()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 16))
+    }
+    var body: some View {
+        let end = shift.ended ?? Date()
+        let totals = shift.timeTotals(at: end)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(shift.started.formatted(date: .complete, time: .omitted))
+                    .font(.title2.bold())
+                panel("今日流水") {
+                    Text(shift.revenue.isEmpty ? "未填写" : "¥" + shift.revenue)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(Cockpit.green)
+                }
+                panel("行程概览") {
+                    row("出车时间", shift.started.formatted(date: .omitted, time: .shortened))
+                    row("收车时间", end.formatted(date: .omitted, time: .shortened))
+                    row("出车总时长", clock(end.timeIntervalSince(shift.started)))
+                    row("完成订单", "\(shift.completedOrders) 单")
+                    row("全天总里程", String(format: "%.2f km", shift.kilometers))
+                    row("载客里程", String(format: "%.2f km", shift.passengerKM))
+                    row("空驶里程", String(format: "%.2f km", max(0, shift.kilometers - shift.passengerKM)))
+                }
+                panel("时间分布") {
+                    row("载客时间", clock(totals.passenger))
+                    row("空驶时间", clock(totals.empty))
+                    row("等待时间", clock(totals.waiting))
+                    row("吃饭休息", clock(totals.meal))
+                    row("充电休息", clock(totals.charging))
+                    row("其他休息", clock(totals.other))
+                    row("总休息时间", clock(max(0, end.timeIntervalSince(shift.started) - totals.passenger - totals.empty)))
+                }
+                if !shift.notes.isEmpty {
+                    panel("备注") { Text(shift.notes).font(.subheadline) }
+                }
+                NavigationLink {
+                    FullscreenJourneyMap(shift: shift)
+                } label: {
+                    Label("查看完整轨迹地图", systemImage: "map.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(16)
+                        .background(Cockpit.blue, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(.white)
+                }
+            }
+            .padding(16)
+        }
+        .background(Cockpit.background)
     }
 }
 private struct FullscreenJourneyMap: View {
