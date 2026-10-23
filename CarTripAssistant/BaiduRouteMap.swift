@@ -74,7 +74,13 @@ struct BaiduRouteMap: UIViewRepresentable {
            current.count > 0 {
             let lastLocation = CLLocation(latitude: last.lat, longitude: last.lon)
             let cursorLocation = CLLocation(latitude: cursor.latitude, longitude: cursor.longitude)
-            if lastLocation.distance(from: cursorLocation) > 0.3 {
+            let meters = lastLocation.distance(from: cursorLocation)
+            // Playback interpolation is display-only. Never bridge a GPS gap,
+            // and never connect a cursor to an unrelated prior segment.
+            if meters > 0.3 && meters < 100,
+               let lastPair = current.last,
+               abs(lastPair[0].doubleValue - last.lat) < 0.000001,
+               abs(lastPair[1].doubleValue - last.lon) < 0.000001 {
                 current.append([NSNumber(value: cursor.latitude), NSNumber(value: cursor.longitude)])
             }
         }
