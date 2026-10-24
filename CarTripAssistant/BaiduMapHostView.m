@@ -86,6 +86,9 @@ static BOOL started = NO;
                     BMKPolyline *line=[BMKPolyline polylineWithCoordinates:coords count:pairs.count];
                     free(coords);
                     [self.routeLines addObject:line];
+                    // Baidu SDK may ask for the overlay renderer immediately.
+                    // Register passenger classification before addOverlay.
+                    if ([entry[@"passenger"] boolValue]) [self.passengerLines addObject:line];
                     [self.map addOverlay:line];
                 }
             }
