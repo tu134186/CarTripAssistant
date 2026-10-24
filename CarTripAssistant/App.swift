@@ -808,19 +808,27 @@ struct Dashboard: View {
                     let temp = FileManager.default.temporaryDirectory.appendingPathComponent("incoming-trip-restore.json")
                     if FileManager.default.fileExists(atPath: temp.path) { try FileManager.default.removeItem(at: temp) }
                     try FileManager.default.copyItem(at: url, to: temp)
+                    // Validate before presenting confirmation so invalid JSON is never silent.
+                    let raw = try Data(contentsOf: temp)
+                    guard let root = try JSONSerialization.jsonObject(with: raw) as? [String: Any],
+                          root["history"] is [Any] else {
+                        throw NSError(domain: "CarTripAssistant", code: 422, userInfo: [NSLocalizedDescriptionKey: "所选 JSON 不是行程助手完整备份（缺少 history 数据）"])
+                    }
                     pendingRestore = temp
-                    confirmRestore = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { confirmRestore = true }
                 } catch { restoreNotice = "读取备份失败：\(error.localizedDescription)" }
             case .failure(let error): restoreNotice = error.localizedDescription
             }
         }
-        .confirmationDialog("恢复备份将替换当前行程与历史记录。原数据会自动另存备份。是否继续？", isPresented: $confirmRestore, titleVisibility: .visible) {
+        .alert("确认恢复行程备份", isPresented: $confirmRestore) {
             Button("确认恢复", role: .destructive) {
                 guard let url = pendingRestore else { return }
                 do { try store.restoreArchive(url); restoreNotice = "恢复成功，原有数据已另存备份" }
                 catch { restoreNotice = "恢复失败：\(error.localizedDescription)" }
                 pendingRestore = nil
             }
+        } message: {
+            Text("将用所选备份替换当前行程与历史记录，原数据会自动另存快照。")
         }
         .alert("数据恢复", isPresented: Binding(get: { restoreNotice != nil }, set: { if !$0 { restoreNotice = nil } })) {
             Button("确定", role: .cancel) { restoreNotice = nil }
