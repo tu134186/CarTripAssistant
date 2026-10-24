@@ -815,20 +815,27 @@ struct Dashboard: View {
                         throw NSError(domain: "CarTripAssistant", code: 422, userInfo: [NSLocalizedDescriptionKey: "所选 JSON 不是行程助手完整备份（缺少 history 数据）"])
                     }
                     pendingRestore = temp
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { confirmRestore = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { confirmRestore = true }
                 } catch { restoreNotice = "读取备份失败：\(error.localizedDescription)" }
             case .failure(let error): restoreNotice = error.localizedDescription
             }
         }
-        .alert("确认恢复行程备份", isPresented: $confirmRestore) {
-            Button("确认恢复", role: .destructive) {
-                guard let url = pendingRestore else { return }
-                do { try store.restoreArchive(url); restoreNotice = "恢复成功，原有数据已另存备份" }
-                catch { restoreNotice = "恢复失败：\(error.localizedDescription)" }
-                pendingRestore = nil
-            }
-        } message: {
-            Text("将用所选备份替换当前行程与历史记录，原数据会自动另存快照。")
+        .sheet(isPresented: $confirmRestore) {
+            NavigationStack {
+                VStack(spacing: 22) {
+                    Image(systemName: "externaldrive.badge.checkmark").font(.system(size: 42)).foregroundStyle(.blue)
+                    Text("确认恢复行程备份").font(.title3.bold())
+                    Text("将用所选备份替换当前行程与历史记录，原数据会自动另存快照。").multilineTextAlignment(.center)
+                    Button("确认恢复") {
+                        confirmRestore = false
+                        guard let url = pendingRestore else { return }
+                        do { try store.restoreArchive(url); restoreNotice = "恢复成功，原有数据已另存备份" }
+                        catch { restoreNotice = "恢复失败：\(error.localizedDescription)" }
+                        pendingRestore = nil
+                    }.buttonStyle(.borderedProminent)
+                    Button("取消") { pendingRestore = nil; confirmRestore = false }.buttonStyle(.bordered)
+                }.padding(24)
+            }.presentationDetents([.medium])
         }
         .alert("数据恢复", isPresented: Binding(get: { restoreNotice != nil }, set: { if !$0 { restoreNotice = nil } })) {
             Button("确定", role: .cancel) { restoreNotice = nil }
