@@ -845,12 +845,12 @@ struct Dashboard: View {
             NavigationStack {
                 VStack(spacing: 20) {
                     Text("导入行程备份").font(.title2.bold())
-                    Text("先选择旧手机导出的 JSON 文件，读取成功后再决定合并或覆盖。").multilineTextAlignment(.center)
+                    Text("选择旧手机导出的备份文件。此版本放宽系统文件选择类型限制，读取后才检查 JSON 内容。").multilineTextAlignment(.center)
                     Button("选择备份文件") {
                         restoreStatus = "正在打开系统文件选择器……"
                         showRestorePicker = true
                     }.buttonStyle(.borderedProminent)
-                    .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json, .data, .item]) { result in
+                    .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.content, .data, .item, .json]) { result in
                         switch result {
                         case .success(let url):
                             restoreStatus = "已选择：\(url.lastPathComponent)，正在读取……"
