@@ -42,8 +42,8 @@ jobs:
           p='CarTripAssistant/Info.plist'
           with open(p,'rb') as f: info=plistlib.load(f)
           assert info.get('CFBundleShortVersionString'), 'Uploaded source missing app version'
-          info['CFBundleShortVersionString']='3.3.4'
-          info['CFBundleVersion']='3304'
+          info['CFBundleShortVersionString']='3.3.5'
+          info['CFBundleVersion']='3305'
           with open(p,'wb') as f: plistlib.dump(info,f)
           PY
       - name: Publish optional Shenzhen map separately
