@@ -845,15 +845,18 @@ struct Dashboard: View {
             NavigationStack {
                 VStack(spacing: 20) {
                     Text("导入行程备份").font(.title2.bold())
-                    Text("选择旧手机导出的备份文件。此版本放宽系统文件选择类型限制，读取后才检查 JSON 内容。").multilineTextAlignment(.center)
+                    Text("选择旧手机导出的备份文件。请选择行程助手导出的 JSON 备份。选错文件会显示具体原因。").multilineTextAlignment(.center)
                     Button("选择备份文件") {
                         restoreStatus = "正在打开系统文件选择器……"
                         showRestorePicker = true
                     }.buttonStyle(.borderedProminent)
-                    .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.content, .data, .item, .json]) { result in
+                    Text("状态：\(restoreStatus)").font(.caption).textSelection(.enabled)
+                    Button("关闭") { showImportGuide = false }
+                }.padding(24)
+            }\n                    .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.item]) { result in
                         switch result {
                         case .success(let url):
-                            restoreStatus = "已选择：\(url.lastPathComponent)，正在读取……"
+                            restoreStatus = "已选择：\(url.lastPathComponent)，正在读取……"\n                            guard url.pathExtension.lowercased() == "json" else {\n                                restoreStatus = "不支持的文件格式：\(url.pathExtension)。请选择行程助手 JSON 备份文件。"\n                                return\n                            }
                             let granted = url.startAccessingSecurityScopedResource()
                             defer { if granted { url.stopAccessingSecurityScopedResource() } }
                             do {
@@ -878,10 +881,7 @@ struct Dashboard: View {
                             restoreStatus = "选择失败：\(error.localizedDescription)"
                         }
                     }
-                    Text("状态：\(restoreStatus)").font(.caption).textSelection(.enabled)
-                    Button("关闭") { showImportGuide = false }
-                }.padding(24)
-            }.presentationDetents([.medium])
+            .presentationDetents([.medium])
         }
         .sheet(isPresented: $confirmRestore) {
             NavigationStack {
