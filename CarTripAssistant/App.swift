@@ -867,7 +867,7 @@ struct Dashboard: View {
                     Image(systemName: "externaldrive.badge.checkmark").font(.system(size: 40)).foregroundStyle(.blue)
                     Text("行程备份已读取").font(.title3.bold())
                     if let preview = restorePreview {
-                        Text("备份行程 \\(preview.total) 条 · 已有重复 \\(preview.duplicates) 条 · 可新增 \\(preview.newCount) 条")
+                        Text("备份行程 \(preview.total) 条 · 已有重复 \(preview.duplicates) 条 · 可新增 \(preview.newCount) 条")
                             .multilineTextAlignment(.center)
                         if preview.hasActive { Text("备份包含未结束的行程，覆盖恢复将保留该状态；合并仅导入已结束的历史行程。").font(.caption).multilineTextAlignment(.center) }
                         if preview.newCount == 0 { Text("没有新的历史行程，重复导入不会新增记录。").foregroundStyle(.orange) }
@@ -877,8 +877,8 @@ struct Dashboard: View {
                         restoreBusy = true
                         do {
                             let count = try store.mergeArchive(url)
-                            restoreNotice = count == 0 ? "没有新行程，已跳过重复数据" : "合并成功，新增 \\(count) 条历史行程，重复行程已跳过"
-                        } catch { restoreNotice = "合并失败：\\(error.localizedDescription)" }
+                            restoreNotice = count == 0 ? "没有新行程，已跳过重复数据" : "合并成功，新增 \(count) 条历史行程，重复行程已跳过"
+                        } catch { restoreNotice = "合并失败：\(error.localizedDescription)" }
                         restoreBusy = false
                         pendingRestore = nil
                         confirmRestore = false
@@ -889,7 +889,7 @@ struct Dashboard: View {
                         do {
                             try store.restoreArchive(url)
                             restoreNotice = "覆盖恢复成功，现有记录已自动备份"
-                        } catch { restoreNotice = "覆盖恢复失败：\\(error.localizedDescription)" }
+                        } catch { restoreNotice = "覆盖恢复失败：\(error.localizedDescription)" }
                         restoreBusy = false
                         pendingRestore = nil
                         confirmRestore = false
