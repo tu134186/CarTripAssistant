@@ -15,6 +15,7 @@
 @property(nonatomic,strong) BMKPointAnnotation *endPin;
 @property(nonatomic,strong) NSArray<NSDictionary *> *lastSegments;
 @property(nonatomic,strong) NSMutableArray<BMKPolyline *> *passengerLines;
+@property(nonatomic,strong) NSMutableArray<BMKPolyline *> *routeLines;
 @end
 
 @implementation BaiduMapHostView
@@ -60,9 +61,9 @@ static BOOL started = NO;
     if (!self.map) return;
     if (![self.lastSegments isEqualToArray:segments]) {
         self.lastSegments = [segments copy];
-        if (self.passengerLines.count) {
-            for (BMKPolyline *line in self.passengerLines) [self.map removeOverlay:line];
-        }
+        // Remove BOTH empty-driving (blue) and passenger (green) overlays before replay redraw.
+        for (BMKPolyline *line in self.routeLines) [self.map removeOverlay:line];
+        self.routeLines = [NSMutableArray array];
         self.passengerLines = [NSMutableArray array];
         NSMutableArray<NSArray<NSNumber *> *> *all = [NSMutableArray array];
         for (NSDictionary *entry in segments) {
@@ -75,6 +76,7 @@ static BOOL started = NO;
             BMKPolyline *line=[BMKPolyline polylineWithCoordinates:coords count:pairs.count];
             free(coords);
             if ([entry[@"passenger"] boolValue]) [self.passengerLines addObject:line];
+            [self.routeLines addObject:line];
             [self.map addOverlay:line];
         }
         if (!all.count) {
