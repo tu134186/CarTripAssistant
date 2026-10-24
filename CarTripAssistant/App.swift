@@ -778,6 +778,8 @@ struct Dashboard: View {
     @State private var pendingRestore: URL?
     @State private var restorePreview: TripStore.ImportPreview?
     @State private var restoreBusy = false
+    @State private var restoreStatus = "尚未选择备份文件"
+    @State private var restoreStep = 0
     private var riding: Bool { store.active?.rides.last.map { $0.ended == nil } ?? false }
     private var resting: Bool { store.active?.breaks.last.map { $0.ended == nil } ?? false }
     private var activeRideStart: Date? { guard let ride = store.active?.rides.last, ride.ended == nil else { return nil }; return ride.started }
@@ -838,9 +840,11 @@ struct Dashboard: View {
             }
         }
         }
-        .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json]) { result in
+        .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json, .data, .item]) { result in
             switch result {
             case .success(let url):
+                restoreStep = 1
+                restoreStatus = "已选择：\(url.lastPathComponent)，正在读取……"
                 let granted = url.startAccessingSecurityScopedResource()
                 defer { if granted { url.stopAccessingSecurityScopedResource() } }
                 do {
@@ -853,12 +857,16 @@ struct Dashboard: View {
                           root["history"] is [Any] else {
                         throw NSError(domain: "CarTripAssistant", code: 422, userInfo: [NSLocalizedDescriptionKey: "所选 JSON 不是行程助手完整备份（缺少 history 数据）"])
                     }
+                    restoreStep = 2
+                    restoreStatus = "文件已读取（\(raw.count) 字节），正在验证行程……"
                     restorePreview = try store.previewArchive(temp)
                     pendingRestore = temp
+                    restoreStep = 3
+                    restoreStatus = "验证成功：\(restorePreview?.total ?? 0) 条行程，等待确认导入"
                     restoreNotice = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { confirmRestore = true }
-                } catch { restoreNotice = "读取备份失败：\(error.localizedDescription)" }
-            case .failure(let error): restoreNotice = error.localizedDescription
+                } catch { restoreStep = -1; restoreStatus = "读取备份失败：\(error.localizedDescription)"; restoreNotice = restoreStatus }
+            case .failure(let error): restoreStep = -1; restoreStatus = "文件选择失败：\(error.localizedDescription)"; restoreNotice = restoreStatus
             }
         }
         .sheet(isPresented: $confirmRestore) {
@@ -878,7 +886,8 @@ struct Dashboard: View {
                         do {
                             let count = try store.mergeArchive(url)
                             restoreNotice = count == 0 ? "没有新行程，已跳过重复数据" : "合并成功，新增 \(count) 条历史行程，重复行程已跳过"
-                        } catch { restoreNotice = "合并失败：\(error.localizedDescription)" }
+                            restoreStatus = restoreNotice ?? "合并完成"
+                        } catch { restoreNotice = "合并失败：\(error.localizedDescription)"; restoreStatus = restoreNotice ?? "合并失败" }
                         restoreBusy = false
                         pendingRestore = nil
                         confirmRestore = false
@@ -889,7 +898,8 @@ struct Dashboard: View {
                         do {
                             try store.restoreArchive(url)
                             restoreNotice = "覆盖恢复成功，现有记录已自动备份"
-                        } catch { restoreNotice = "覆盖恢复失败：\(error.localizedDescription)" }
+                            restoreStatus = restoreNotice ?? "覆盖恢复完成"
+                        } catch { restoreNotice = "覆盖恢复失败：\(error.localizedDescription)"; restoreStatus = restoreNotice ?? "覆盖恢复失败" }
                         restoreBusy = false
                         pendingRestore = nil
                         confirmRestore = false
@@ -1198,12 +1208,16 @@ struct Dashboard: View {
                 restoreNotice = nil
                 pendingRestore = nil
                 restorePreview = nil
+                restoreStatus = "正在打开文件选择器……"
                 showRestorePicker = true
             } label: {
                 Label("从 JSON 备份恢复", systemImage: "square.and.arrow.down")
                     .frame(maxWidth: .infinity).padding(.vertical, 12)
                     .background(Cockpit.secondary, in: RoundedRectangle(cornerRadius: 12))
             }.buttonStyle(.plain)
+            Text("导入状态：\(restoreStatus)")
+                    .font(.caption).foregroundStyle(Cockpit.muted)
+                    .textSelection(.enabled)
             Text("恢复前会自动保存旧数据快照；请先结束正在进行的行程。")
                     .font(.caption).foregroundStyle(Cockpit.muted)
             
