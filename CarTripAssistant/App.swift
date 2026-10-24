@@ -853,10 +853,15 @@ struct Dashboard: View {
                     Text("状态：\(restoreStatus)").font(.caption).textSelection(.enabled)
                     Button("关闭") { showImportGuide = false }
                 }.padding(24)
-            }\n                    .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.item]) { result in
+            }
+                    .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.item]) { result in
                         switch result {
                         case .success(let url):
-                            restoreStatus = "已选择：\(url.lastPathComponent)，正在读取……"\n                            guard url.pathExtension.lowercased() == "json" else {\n                                restoreStatus = "不支持的文件格式：\(url.pathExtension)。请选择行程助手 JSON 备份文件。"\n                                return\n                            }
+                            restoreStatus = "已选择：\(url.lastPathComponent)，正在读取……"
+                            guard url.pathExtension.lowercased() == "json" else {
+                                restoreStatus = "不支持的文件格式：\(url.pathExtension)。请选择行程助手 JSON 备份文件。"
+                                return
+                            }
                             let granted = url.startAccessingSecurityScopedResource()
                             defer { if granted { url.stopAccessingSecurityScopedResource() } }
                             do {
