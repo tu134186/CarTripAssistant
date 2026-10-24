@@ -526,6 +526,43 @@ struct TrackPoint: Codable {
         // the app before the 15-second flush can lose the new shift's start.
         if shift.points.count > countBeforeUpdate || Date().timeIntervalSince(lastDiskWrite) >= 15 { save() }
     }
+    struct ImportPreview {
+        let total: Int
+        let duplicates: Int
+        let newCount: Int
+        let hasActive: Bool
+    }
+    func previewArchive(_ url: URL) throws -> ImportPreview {
+        let data = try Data(contentsOf: url)
+        let decoded = try JSONDecoder().decode(Saved.self, from: data)
+        let existing = Set(history.map { $0.id })
+        let ids = decoded.history.map { $0.id }
+        let unique = Set(ids)
+        guard unique.count == ids.count else {
+            throw NSError(domain: "CarTripAssistant", code: 422, userInfo: [NSLocalizedDescriptionKey: "备份内部包含重复行程 ID，请检查备份文件"])
+        }
+        return ImportPreview(total: ids.count, duplicates: ids.filter { existing.contains($0) }.count, newCount: ids.filter { !existing.contains($0) }.count, hasActive: decoded.active != nil)
+    }
+    func mergeArchive(_ url: URL) throws -> Int {
+        guard active == nil else {
+            throw NSError(domain: "CarTripAssistant", code: 409, userInfo: [NSLocalizedDescriptionKey: "正在出车，请先收车再导入"])
+        }
+        let decoded = try JSONDecoder().decode(Saved.self, from: Data(contentsOf: url))
+        let existing = Set(history.map { $0.id })
+        let incoming = decoded.history.filter { !existing.contains($0.id) }
+        if incoming.isEmpty { return 0 }
+        if let current = try? Data(contentsOf: file) {
+            let stamp = Int(Date().timeIntervalSince1970)
+            let snapshot = file.deletingLastPathComponent().appendingPathComponent("trips-before-merge-\(stamp).json")
+            try current.write(to: snapshot, options: .atomic)
+        }
+        let merged = Saved(active: active, history: history + incoming)
+        let payload = try JSONEncoder().encode(merged)
+        try payload.write(to: file, options: .atomic)
+        history = merged.history
+        safeToWrite = true
+        return incoming.count
+    }
     func restoreArchive(_ url: URL) throws {
         guard active == nil else {
             throw NSError(domain: "CarTripAssistant", code: 409, userInfo: [NSLocalizedDescriptionKey: "正在出车，必须先收车才能恢复备份"])
@@ -739,6 +776,8 @@ struct Dashboard: View {
     @State private var restoreNotice: String?
     @State private var confirmRestore = false
     @State private var pendingRestore: URL?
+    @State private var restorePreview: TripStore.ImportPreview?
+    @State private var restoreBusy = false
     private var riding: Bool { store.active?.rides.last.map { $0.ended == nil } ?? false }
     private var resting: Bool { store.active?.breaks.last.map { $0.ended == nil } ?? false }
     private var activeRideStart: Date? { guard let ride = store.active?.rides.last, ride.ended == nil else { return nil }; return ride.started }
@@ -814,7 +853,9 @@ struct Dashboard: View {
                           root["history"] is [Any] else {
                         throw NSError(domain: "CarTripAssistant", code: 422, userInfo: [NSLocalizedDescriptionKey: "所选 JSON 不是行程助手完整备份（缺少 history 数据）"])
                     }
+                    restorePreview = try store.previewArchive(temp)
                     pendingRestore = temp
+                    restoreNotice = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { confirmRestore = true }
                 } catch { restoreNotice = "读取备份失败：\(error.localizedDescription)" }
             case .failure(let error): restoreNotice = error.localizedDescription
@@ -822,20 +863,40 @@ struct Dashboard: View {
         }
         .sheet(isPresented: $confirmRestore) {
             NavigationStack {
-                VStack(spacing: 22) {
-                    Image(systemName: "externaldrive.badge.checkmark").font(.system(size: 42)).foregroundStyle(.blue)
-                    Text("确认恢复行程备份").font(.title3.bold())
-                    Text("将用所选备份替换当前行程与历史记录，原数据会自动另存快照。").multilineTextAlignment(.center)
-                    Button("确认恢复") {
-                        confirmRestore = false
+                VStack(spacing: 18) {
+                    Image(systemName: "externaldrive.badge.checkmark").font(.system(size: 40)).foregroundStyle(.blue)
+                    Text("行程备份已读取").font(.title3.bold())
+                    if let preview = restorePreview {
+                        Text("备份行程 \\(preview.total) 条 · 已有重复 \\(preview.duplicates) 条 · 可新增 \\(preview.newCount) 条")
+                            .multilineTextAlignment(.center)
+                        if preview.hasActive { Text("备份包含未结束的行程，覆盖恢复将保留该状态；合并仅导入已结束的历史行程。").font(.caption).multilineTextAlignment(.center) }
+                        if preview.newCount == 0 { Text("没有新的历史行程，重复导入不会新增记录。").foregroundStyle(.orange) }
+                    }
+                    Button("合并导入（跳过重复）") {
                         guard let url = pendingRestore else { return }
-                        do { try store.restoreArchive(url); restoreNotice = "恢复成功，原有数据已另存备份" }
-                        catch { restoreNotice = "恢复失败：\(error.localizedDescription)" }
+                        restoreBusy = true
+                        do {
+                            let count = try store.mergeArchive(url)
+                            restoreNotice = count == 0 ? "没有新行程，已跳过重复数据" : "合并成功，新增 \\(count) 条历史行程，重复行程已跳过"
+                        } catch { restoreNotice = "合并失败：\\(error.localizedDescription)" }
+                        restoreBusy = false
                         pendingRestore = nil
-                    }.buttonStyle(.borderedProminent)
-                    Button("取消") { pendingRestore = nil; confirmRestore = false }.buttonStyle(.bordered)
-                }.padding(24)
-            }.presentationDetents([.medium])
+                        confirmRestore = false
+                    }.buttonStyle(.borderedProminent).disabled(restoreBusy)
+                    Button("覆盖恢复（替换当前记录）", role: .destructive) {
+                        guard let url = pendingRestore else { return }
+                        restoreBusy = true
+                        do {
+                            try store.restoreArchive(url)
+                            restoreNotice = "覆盖恢复成功，现有记录已自动备份"
+                        } catch { restoreNotice = "覆盖恢复失败：\\(error.localizedDescription)" }
+                        restoreBusy = false
+                        pendingRestore = nil
+                        confirmRestore = false
+                    }.buttonStyle(.bordered).disabled(restoreBusy)
+                    Button("取消") { pendingRestore = nil; confirmRestore = false }.disabled(restoreBusy)
+                }.padding(20)
+            }.presentationDetents([.medium, .large])
         }
         .alert("数据恢复", isPresented: Binding(get: { restoreNotice != nil }, set: { if !$0 { restoreNotice = nil } })) {
             Button("确定", role: .cancel) { restoreNotice = nil }
@@ -1134,6 +1195,9 @@ struct Dashboard: View {
                         .background(Cockpit.secondary, in: RoundedRectangle(cornerRadius: 12))
                 }.buttonStyle(.plain)
                 Button {
+                restoreNotice = nil
+                pendingRestore = nil
+                restorePreview = nil
                 showRestorePicker = true
             } label: {
                 Label("从 JSON 备份恢复", systemImage: "square.and.arrow.down")
