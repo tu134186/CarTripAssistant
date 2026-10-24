@@ -60,25 +60,40 @@ static BOOL started = NO;
 - (void)renderSegments:(NSArray<NSDictionary *> *)segments playback:(NSArray<NSNumber *> *)playback {
     if (!self.map) return;
     if (![self.lastSegments isEqualToArray:segments]) {
-        self.lastSegments = [segments copy];
-        // Remove BOTH empty-driving (blue) and passenger (green) overlays before replay redraw.
-        for (BMKPolyline *line in self.routeLines) [self.map removeOverlay:line];
-        self.routeLines = [NSMutableArray array];
-        self.passengerLines = [NSMutableArray array];
-        NSMutableArray<NSArray<NSNumber *> *> *all = [NSMutableArray array];
-        for (NSDictionary *entry in segments) {
-            NSArray<NSArray<NSNumber *> *> *pairs = entry[@"points"];
-            if (pairs.count == 0) continue;
-            [all addObjectsFromArray:pairs];
-            if (pairs.count < 2) continue;
-            CLLocationCoordinate2D *coords = calloc(pairs.count, sizeof(CLLocationCoordinate2D));
-            for (NSUInteger i=0;i<pairs.count;i++) coords[i]=[self baidu:pairs[i]];
-            BMKPolyline *line=[BMKPolyline polylineWithCoordinates:coords count:pairs.count];
-            free(coords);
-            if ([entry[@"passenger"] boolValue]) [self.passengerLines addObject:line];
-            [self.routeLines addObject:line];
-            [self.map addOverlay:line];
+        // Preserve unchanged overlays while playback extends or rewinds.
+        NSArray<NSDictionary *> *old = self.lastSegments ?: @[];
+        NSUInteger common = 0;
+        while (common < old.count && common < segments.count &&
+               [old[common] isEqualToDictionary:segments[common]]) common++;
+        if (!self.routeLines) self.routeLines = [NSMutableArray array];
+        for (NSUInteger i=self.routeLines.count; i>common; i--) {
+            id line=self.routeLines[i-1];
+            if (line != (id)[NSNull null]) [self.map removeOverlay:line];
+            [self.routeLines removeObjectAtIndex:i-1];
         }
+        NSMutableArray<NSArray<NSNumber *> *> *all = [NSMutableArray array];
+        self.passengerLines = [NSMutableArray array];
+        for (NSUInteger idx=0; idx<segments.count; idx++) {
+            NSDictionary *entry=segments[idx];
+            NSArray<NSArray<NSNumber *> *> *pairs=entry[@"points"];
+            if (pairs.count) [all addObjectsFromArray:pairs];
+            if (idx>=common) {
+                if (pairs.count<2) {
+                    [self.routeLines addObject:(id)[NSNull null]];
+                } else {
+                    CLLocationCoordinate2D *coords=calloc(pairs.count,sizeof(CLLocationCoordinate2D));
+                    for (NSUInteger i=0;i<pairs.count;i++) coords[i]=[self baidu:pairs[i]];
+                    BMKPolyline *line=[BMKPolyline polylineWithCoordinates:coords count:pairs.count];
+                    free(coords);
+                    [self.routeLines addObject:line];
+                    [self.map addOverlay:line];
+                }
+            }
+            id line=self.routeLines[idx];
+            if ([entry[@"passenger"] boolValue] && line != (id)[NSNull null])
+                [self.passengerLines addObject:line];
+        }
+        self.lastSegments=[segments copy];
         if (!all.count) {
             if (self.startPin) { [self.map removeAnnotation:self.startPin]; self.startPin=nil; }
             if (self.endPin) { [self.map removeAnnotation:self.endPin]; self.endPin=nil; }
