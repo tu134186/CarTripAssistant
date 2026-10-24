@@ -44,9 +44,9 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             MAP_RUN="${{ github.event.workflow_run.id }}"
           else
-            MAP_RUN=$(gh run list --repo "${{ github.repository }}" --workflow shenzhen-map.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+            MAP_RUN=$(gh run list --repo "${{ github.repository }}" --workflow shenzhen-map.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
           fi
-          if [ -n "$MAP_RUN" ]; then
+          if [ -n "$MAP_RUN" ] && [ "$MAP_RUN" != "null" ]; then
             echo "Optional Shenzhen map run: $MAP_RUN"
             if gh run download "$MAP_RUN" --repo "${{ github.repository }}" --name Shenzhen-Offline-Map-MBTiles --dir map-download && test -s map-download/Shenzhen-Roads.mbtiles; then
               if ! gh release view shenzhen-map-v1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
@@ -68,6 +68,14 @@ jobs:
           else
             /tmp/cartrip-icon-venv/bin/python scripts/create_app_icon.py
           fi
+      - name: Verify source and workflow inputs
+        run: |
+          set -euo pipefail
+          test -s project.yml
+          test -s Podfile
+          test -s CarTripAssistant/BaiduMapHostView.m
+          /usr/bin/plutil -lint CarTripAssistant/Info.plist
+          grep -q "3.3.5" CarTripAssistant/Info.plist
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
