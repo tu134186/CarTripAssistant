@@ -848,18 +848,22 @@ struct Dashboard: View {
                     Text("选择旧手机导出的备份文件。请选择行程助手导出的 JSON 备份。选错文件会显示具体原因。").multilineTextAlignment(.center)
                     Button("选择备份文件") {
                         restoreStatus = "正在打开系统文件选择器……"
-                        showRestorePicker = true
+                        showImportGuide = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { showRestorePicker = true }
                     }.buttonStyle(.borderedProminent)
                     Text("状态：\(restoreStatus)").font(.caption).textSelection(.enabled)
                     Button("关闭") { showImportGuide = false }
                 }.padding(24)
             }
+            .presentationDetents([.medium])
+        }
                     .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.item]) { result in
                         switch result {
                         case .success(let url):
                             restoreStatus = "已选择：\(url.lastPathComponent)，正在读取……"
                             guard url.pathExtension.lowercased() == "json" else {
                                 restoreStatus = "不支持的文件格式：\(url.pathExtension)。请选择行程助手 JSON 备份文件。"
+                                showImportGuide = true
                                 return
                             }
                             let granted = url.startAccessingSecurityScopedResource()
@@ -881,13 +885,13 @@ struct Dashboard: View {
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { confirmRestore = true }
                             } catch {
                                 restoreStatus = "读取失败：\(error.localizedDescription)"
+                                showImportGuide = true
                             }
                         case .failure(let error):
                             restoreStatus = "选择失败：\(error.localizedDescription)"
+                            showImportGuide = true
                         }
                     }
-            .presentationDetents([.medium])
-        }
         .sheet(isPresented: $confirmRestore) {
             NavigationStack {
                 VStack(spacing: 18) {
