@@ -773,6 +773,7 @@ struct Dashboard: View {
     @State private var gpxExport: URL?
     @State private var selectedTab = 0
     @State private var showRestorePicker = false
+    @State private var showImportGuide = false
     @State private var restoreNotice: String?
     @State private var confirmRestore = false
     @State private var pendingRestore: URL?
@@ -839,6 +840,20 @@ struct Dashboard: View {
                 bottomTabs
             }
         }
+        }
+        .sheet(isPresented: $showImportGuide) {
+            NavigationStack {
+                VStack(spacing: 20) {
+                    Text("导入行程备份").font(.title2.bold())
+                    Text("先选择旧手机导出的 JSON 文件，读取成功后再决定合并或覆盖。").multilineTextAlignment(.center)
+                    Button("选择备份文件") {
+                        showImportGuide = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { showRestorePicker = true }
+                    }.buttonStyle(.borderedProminent)
+                    Text("状态：\(restoreStatus)").font(.caption).textSelection(.enabled)
+                    Button("关闭") { showImportGuide = false }
+                }.padding(24)
+            }.presentationDetents([.medium])
         }
         .sheet(isPresented: $confirmRestore) {
             NavigationStack {
@@ -1180,41 +1195,12 @@ struct Dashboard: View {
                 pendingRestore = nil
                 restorePreview = nil
                 restoreStatus = "正在打开文件选择器……"
-                showRestorePicker = true
+                showImportGuide = true
             } label: {
                 Label("从 JSON 备份恢复", systemImage: "square.and.arrow.down")
                     .frame(maxWidth: .infinity).padding(.vertical, 12)
                     .background(Cockpit.secondary, in: RoundedRectangle(cornerRadius: 12))
             }.buttonStyle(.plain)
-        .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json, .data, .item]) { result in
-            switch result {
-            case .success(let url):
-                restoreStep = 1
-                restoreStatus = "已选择：\(url.lastPathComponent)，正在读取……"
-                let granted = url.startAccessingSecurityScopedResource()
-                defer { if granted { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    let temp = FileManager.default.temporaryDirectory.appendingPathComponent("incoming-trip-restore.json")
-                    if FileManager.default.fileExists(atPath: temp.path) { try FileManager.default.removeItem(at: temp) }
-                    try FileManager.default.copyItem(at: url, to: temp)
-                    // Validate before presenting confirmation so invalid JSON is never silent.
-                    let raw = try Data(contentsOf: temp)
-                    guard let root = try JSONSerialization.jsonObject(with: raw) as? [String: Any],
-                          root["history"] is [Any] else {
-                        throw NSError(domain: "CarTripAssistant", code: 422, userInfo: [NSLocalizedDescriptionKey: "所选 JSON 不是行程助手完整备份（缺少 history 数据）"])
-                    }
-                    restoreStep = 2
-                    restoreStatus = "文件已读取（\(raw.count) 字节），正在验证行程……"
-                    restorePreview = try store.previewArchive(temp)
-                    pendingRestore = temp
-                    restoreStep = 3
-                    restoreStatus = "验证成功：\(restorePreview?.total ?? 0) 条行程，等待确认导入"
-                    restoreNotice = nil
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { confirmRestore = true }
-                } catch { restoreStep = -1; restoreStatus = "读取备份失败：\(error.localizedDescription)"; restoreNotice = restoreStatus }
-            case .failure(let error): restoreStep = -1; restoreStatus = "文件选择失败：\(error.localizedDescription)"; restoreNotice = restoreStatus
-            }
-        }
             Text("导入状态：\(restoreStatus)")
                     .font(.caption).foregroundStyle(Cockpit.muted)
                     .textSelection(.enabled)
