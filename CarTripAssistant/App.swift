@@ -2106,9 +2106,9 @@ private struct RouteDetail: View {
             playbackCoordinate: playbackCoordinate,
             cameraMode: mapCameraMode,
             liveHeading: bearing,
-            replayActive: replayMode,
             liveSpeed: gps?.speed ?? -1,
             liveAccuracy: gps?.horizontalAccuracy ?? -1,
+            replayActive: replayMode,
             liveCoordinate: gps?.coordinate
         )
     }
