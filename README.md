@@ -117,18 +117,21 @@ Based on the existing V3.3.19 development branch, this isolated build reduces st
 Based on V3.3.20, reject inaccurate or implausible camera-only GPS jumps while preserving the car's navigation heading and the existing historical playback behavior. Recording, backups, mileage and route storage are unchanged.
 
 
-## V3.3.23 (Build 3323) — anchored navigation camera
+## V3.3.24 (Build 3324) — anchored navigation camera
 
 Fix the forward-running Baidu heading-up map by removing the repeated screen-point-to-map-center conversion. Every live camera update now centers on the current filtered vehicle GPS position. Car remains visible at map center (not yet a lower-screen anchor); map rotation follows driving course. Replay overview, recorded routes, backups and mileage are unchanged.
 
 
-CI note: V3.3.23 isolated branch is now explicitly enabled by the default-branch workflow. This change requests the final IPA and source ZIP build.
+CI note: V3.3.24 isolated branch is now explicitly enabled by the default-branch workflow. This change requests the final IPA and source ZIP build.
 
 
-CI verification trigger: build V3.3.23 (3323) from its own source; no merge to main.
+CI verification trigger: build V3.3.24 (3324) from its own source; no merge to main.
 
 
-V3.3.23: Baidu SDK fixed vehicle screen anchor at 70% height, plus one-tap recenter / heading-up button. Historical playback unchanged.
+V3.3.24: Baidu SDK fixed vehicle screen anchor at 70% height, plus one-tap recenter / heading-up button. Historical playback unchanged.
 
 
-CI trigger for V3.3.23 build 3323 IPA and source ZIP.
+CI trigger for V3.3.24 build 3324 IPA and source ZIP.
+
+
+V3.3.24: Remove meal, charging and other rest rows from historical daily report only. Keep 3323 map features and underlying statistics.
