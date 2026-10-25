@@ -1879,9 +1879,6 @@ private struct HistoryReportDetail: View {
                     row("载客时间", clock(totals.passenger))
                     row("空驶时间", clock(totals.empty))
                     row("等待时间", clock(totals.waiting))
-                    row("吃饭休息", clock(totals.meal))
-                    row("充电休息", clock(totals.charging))
-                    row("其他休息", clock(totals.other))
                     row("总休息时间", clock(max(0, end.timeIntervalSince(shift.started) - totals.passenger - totals.empty)))
                 }
                 if !shift.notes.isEmpty {
