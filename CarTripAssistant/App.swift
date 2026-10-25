@@ -1692,9 +1692,6 @@ private struct TripRouteMap: UIViewRepresentable {
         let first = MKPointAnnotation()
         first.title = "起点"
         first.coordinate = CLLocationCoordinate2D(latitude: points[0].lat, longitude: points[0].lon)
-        let last = MKPointAnnotation()
-        last.title = "终点 / 最新位置"
-        last.coordinate = CLLocationCoordinate2D(latitude: points[points.count-1].lat, longitude: points[points.count-1].lon)
         if points.count == 1 {
             // One GPS sample cannot describe a route or a current position.
             // Avoid overlapping "start" and "latest" pins that mislead the driver.
@@ -1703,11 +1700,11 @@ private struct TripRouteMap: UIViewRepresentable {
                 span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012))
             if !coordinator.hasFramedRoute { map.setRegion(region, animated: false); coordinator.hasFramedRoute = true }
         } else {
-            map.addAnnotations([first, last])
+            map.addAnnotation(first)
             // Do not mark framing complete here: two endpoints alone can hide
             // the bends of a multi-point trip. Fit the full track below.
             if points.count == 2 && !coordinator.hasFramedRoute {
-                map.showAnnotations([first, last], animated: false)
+                map.showAnnotations([first], animated: false)
                 coordinator.hasFramedRoute = true
             }
         }
