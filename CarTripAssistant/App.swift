@@ -2038,32 +2038,49 @@ private struct RouteDetail: View {
     }
     @ViewBuilder private var replayControls: some View {
         if replayCount > 1 {
-                VStack(spacing: 7) {
-                    HStack(spacing: 10) {
-                        Button(replayRunning ? "暂停" : "播放") {
-                            if replayElapsed >= replayDuration { replayElapsed = 0 }
-                            replayMode = true
-                            replayLastTick = nil
-                            replayRunning.toggle()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .frame(maxWidth: .infinity)
-                        Button("重置") { replayRunning = false; replayElapsed = 0; replayMode = false }
-                            .buttonStyle(.bordered)
-                            .frame(maxWidth: .infinity)
+            VStack(spacing: 8) {
+                HStack(spacing: 12) {
+                    Button(replayRunning ? "暂停" : "播放") {
+                        if replayElapsed >= replayDuration { replayElapsed = 0 }
+                        replayMode = true
+                        replayLastTick = nil
+                        replayRunning.toggle()
                     }
-                    .controlSize(.regular)
+                    .buttonStyle(.borderedProminent)
+
                     Picker("回放时长", selection: $replaySpeed) {
                         Text("60秒看完").tag(-60)
                         Text("30秒看完").tag(-30)
                         Text("20秒看完").tag(-20)
                     }
-                    .pickerStyle(.segmented)
-                    Slider(value: Binding(get: { replayElapsed }, set: { replayMode = true; replayElapsed = $0; replayRunning = false }),
-                           in: 0...max(1, replayDuration))
-                    Text(!replayMode ? "完整路线" : "回放：\(shift.points[min(replayIndex, replayCount - 1)].date.formatted(date: .omitted, time: .standard))")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(.horizontal, 15).padding(.vertical, 8)
+                    .pickerStyle(.menu)
+                    .tint(Cockpit.blue)
+
+                    Spacer(minLength: 0)
+                    Button("重置") {
+                        replayRunning = false
+                        replayElapsed = 0
+                        replayMode = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .controlSize(.regular)
+
+                HStack(spacing: 10) {
+                    Slider(value: Binding(
+                        get: { replayElapsed },
+                        set: { replayMode = true; replayElapsed = $0; replayRunning = false }
+                    ), in: 0...max(1, replayDuration))
+                    Text(!replayMode ? "完整路线" :
+                        shift.points[min(replayIndex, replayCount - 1)].date.formatted(date: .omitted, time: .standard))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 6)
         }
     }
     var body: some View {
