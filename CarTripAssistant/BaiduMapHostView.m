@@ -232,16 +232,11 @@ static BOOL started = NO;
     }
     // Only update camera when necessary; do not reset zoom at each GPS fix.
     if (!modeChanged && !moved) return;
-    if (mode == 2 && self.map.bounds.size.height > 0) {
-        [self.map setCenterCoordinate:coordinate animated:NO];
-        CGPoint ahead = CGPointMake(CGRectGetMidX(self.map.bounds),
-                                    CGRectGetHeight(self.map.bounds) * 0.28);
-        CLLocationCoordinate2D center = [self.map convertPoint:ahead toCoordinateFromView:self.map];
-        if (CLLocationCoordinate2DIsValid(center))
-            [self.map setCenterCoordinate:center animated:NO];
-    } else {
-        [self.map setCenterCoordinate:coordinate animated:NO];
-    }
+    // Anchor every camera update to the *current vehicle GPS coordinate*.
+    // Never recenter to a screen-to-map converted point: that feedback loop
+    // repeatedly advances the camera beyond the vehicle on each GPS tick.
+    // Keeping the car at map center is preferable to an unstable offset.
+    [self.map setCenterCoordinate:coordinate animated:NO];
 }
 - (BMKAnnotationView *)mapView:(BMKMapView *)mapView viewForAnnotation:(id<BMKAnnotation>)annotation {
     if (annotation != self.vehicle && annotation != self.livePin) return nil;
