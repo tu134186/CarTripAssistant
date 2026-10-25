@@ -191,20 +191,22 @@ static BOOL started = NO;
             double delta = remainder(heading - self.lastValidHeading, 360.0);
             if (fabs(delta) >= 8.0) self.lastValidHeading = fmod(self.lastValidHeading + delta + 360.0, 360.0);
         }
-        self.map.rotation = (int)lrint(-self.lastValidHeading);
+        self.map.rotation = (int)lrint(self.lastValidHeading);
     } else {
         self.map.rotation = 0;
     }
     // Centering does not change the user's chosen zoom level.
-    [self.map setCenterCoordinate:coordinate animated:NO];
     if (mode == 2 && self.map.bounds.size.height > 0) {
         // Position the vehicle around 72% of the map height, leaving road ahead.
+        [self.map setCenterCoordinate:coordinate animated:NO];
         CGPoint forwardScreen = CGPointMake(CGRectGetMidX(self.map.bounds),
                                             CGRectGetHeight(self.map.bounds) * 0.28);
         CLLocationCoordinate2D forwardCenter =
             [self.map convertPoint:forwardScreen toCoordinateFromView:self.map];
         if (CLLocationCoordinate2DIsValid(forwardCenter))
             [self.map setCenterCoordinate:forwardCenter animated:NO];
+    } else {
+        [self.map setCenterCoordinate:coordinate animated:NO];
     }
 }
 - (BMKAnnotationView *)mapView:(BMKMapView *)mapView viewForAnnotation:(id<BMKAnnotation>)annotation {
