@@ -2154,6 +2154,8 @@ private struct RouteDetail: View {
                                       return -1
                                   }(),
                                   replayActive: replayMode,
+                                  liveSpeed: store.latestGPSLocation?.speed ?? -1,
+                                  liveAccuracy: store.latestGPSLocation?.horizontalAccuracy ?? -1,
                                   liveCoordinate: store.latestGPSLocation?.coordinate)
                 } else {
                     TripRouteMap(shift: replayMode ? replayShift : shift,
