@@ -2122,6 +2122,7 @@ private struct RouteDetail: View {
             Group {
                 if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
                     BaiduRouteMap(shift: replayMode ? replayShift : shift,
+                                  fullRoutePoints: shift.points,
                                   playbackCoordinate: playbackCoordinate,
                                   cameraMode: mapCameraMode,
                                   liveHeading: (store.latestGPSLocation?.speed ?? -1) >= 2.0 ? (store.latestGPSLocation?.course ?? -1) : -1,
