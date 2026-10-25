@@ -115,3 +115,8 @@ Based on the existing V3.3.19 development branch, this isolated build reduces st
 ## V3.3.21 (Build 3321) — fixed vehicle navigation camera
 
 Based on V3.3.20, reject inaccurate or implausible camera-only GPS jumps while preserving the car's navigation heading and the existing historical playback behavior. Recording, backups, mileage and route storage are unchanged.
+
+
+## V3.3.22 (Build 3322) — anchored navigation camera
+
+Fix the forward-running Baidu heading-up map by removing the repeated screen-point-to-map-center conversion. Every live camera update now centers on the current filtered vehicle GPS position. Car remains visible at map center (not yet a lower-screen anchor); map rotation follows driving course. Replay overview, recorded routes, backups and mileage are unchanged.
