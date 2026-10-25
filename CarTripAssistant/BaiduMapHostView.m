@@ -11,6 +11,8 @@
 @property(nonatomic,assign) BOOL fitted;
 @property(nonatomic,assign) double lastValidHeading;
 @property(nonatomic,assign) BOOL navigationZoomInitialized;
+@property(nonatomic,assign) CLLocationCoordinate2D lastCameraFix;
+@property(nonatomic,assign) BOOL hasCameraFix;
 @property(nonatomic,assign) BOOL pendingFit;
 @property(nonatomic,assign) BMKCoordinateRegion initialRegion;
 @property(nonatomic,strong) BMKPointAnnotation *startPin;
@@ -147,8 +149,16 @@ static BOOL started = NO;
         self.livePin.title=@"实时位置";
         [self.map addAnnotation:self.livePin];
     }
+    // Do not let inaccurate stationary GPS fixes pull the car into adjacent lanes.
+    if (mode != 0 && self.hasCameraFix) {
+        CLLocation *oldFix=[[CLLocation alloc] initWithLatitude:self.lastCameraFix.latitude longitude:self.lastCameraFix.longitude];
+        CLLocation *newFix=[[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
+        if ([oldFix distanceFromLocation:newFix] < 8.0) coordinate=self.lastCameraFix;
+    }
     self.livePin.coordinate=coordinate;
-    if (mode == 0 || self.vehicle) return; // Free browsing / replay: never override the camera.
+    if (mode == 0 || self.vehicle) return;
+    self.lastCameraFix=coordinate;
+    self.hasCameraFix=YES; // Free browsing / replay: never override the camera.
 
     if (!self.navigationZoomInitialized) {
         self.map.zoomLevel = 17.5f;
@@ -158,7 +168,7 @@ static BOOL started = NO;
         if (isfinite(heading) && heading >= 0 && heading < 360) {
             // SDK rotation is clockwise; keep the direction of travel pointing up.
             double delta = remainder(heading - self.lastValidHeading, 360.0);
-            if (fabs(delta) >= 3.0) self.lastValidHeading = fmod(self.lastValidHeading + delta + 360.0, 360.0);
+            if (fabs(delta) >= 8.0) self.lastValidHeading = fmod(self.lastValidHeading + delta + 360.0, 360.0);
         }
         self.map.rotation = (int)lrint(-self.lastValidHeading);
     } else {
