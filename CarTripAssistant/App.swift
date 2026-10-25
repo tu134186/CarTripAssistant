@@ -2149,9 +2149,8 @@ private struct RouteDetail: View {
                                   liveHeading: {
                                       let gps = store.latestGPSLocation
                                       if let gps, gps.speed >= 2.0, gps.course >= 0 { return gps.course }
-                                      if let compass = store.compassHeading {
-                                          return (compass + headingOffset).truncatingRemainder(dividingBy: 360)
-                                      }
+                                      // While stationary, hold the last camera bearing instead of
+                                      // rotating the map with noisy phone compass readings.
                                       return -1
                                   }(),
                                   replayActive: replayMode,
