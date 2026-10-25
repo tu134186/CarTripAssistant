@@ -1,3 +1,7 @@
+# V3.3.13 / Build 3313
+
+Based on historical V3.3.6 commit 4d2da04. Route page: compact replay controls (60/30/20 seconds), no skip buttons, live speed badge, map tools folded, three mileage statistics, and short-distance stationary gap continuity. GPS recorder and backup storage unchanged. Map card height unchanged.
+
 # 行程助手 CarTripAssistant
 
 当前版本：**V3.3.4 / Build 3304**（iOS 16.0+）
