@@ -13,6 +13,7 @@
 @property(nonatomic,assign) BOOL navigationZoomInitialized;
 @property(nonatomic,assign) CLLocationCoordinate2D lastCameraFix;
 @property(nonatomic,assign) BOOL hasCameraFix;
+@property(nonatomic,assign) BOOL replayCameraFitted;
 @property(nonatomic,assign) BOOL pendingFit;
 @property(nonatomic,assign) BMKCoordinateRegion initialRegion;
 @property(nonatomic,strong) BMKPointAnnotation *startPin;
@@ -132,6 +133,26 @@ static BOOL started = NO;
     } else if (self.vehicle) {
         [self.map removeAnnotation:self.vehicle];self.vehicle=nil;
     }
+}
+- (void)fitReplayRoute:(NSArray<NSArray<NSNumber *> *> *)points active:(BOOL)active {
+    if (!active) { self.replayCameraFitted=NO; return; }
+    if (self.replayCameraFitted || !self.map || points.count < 2) return;
+    CLLocationDegrees minLat=90,maxLat=-90,minLon=180,maxLon=-180;
+    for (NSArray<NSNumber *> *pair in points) {
+        if (pair.count != 2) continue;
+        CLLocationCoordinate2D p=[self baidu:pair];
+        minLat=MIN(minLat,p.latitude);maxLat=MAX(maxLat,p.latitude);
+        minLon=MIN(minLon,p.longitude);maxLon=MAX(maxLon,p.longitude);
+    }
+    if (minLat > maxLat) return;
+    self.map.rotation=0;
+    BMKCoordinateSpan span=BMKCoordinateSpanMake(MAX(0.003,(maxLat-minLat)*1.35),
+                                                 MAX(0.003,(maxLon-minLon)*1.35));
+    [self.map setRegion:BMKCoordinateRegionMake(
+        CLLocationCoordinate2DMake((minLat+maxLat)/2,(minLon+maxLon)/2),span) animated:NO];
+    self.pendingFit=NO;
+    self.fitted=YES;
+    self.replayCameraFitted=YES;
 }
 - (void)followPlaybackPosition:(NSArray<NSNumber *> *)position {
     // Fixed viewport during replay: only the historical car moves.
