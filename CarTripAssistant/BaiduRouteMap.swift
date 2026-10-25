@@ -91,6 +91,9 @@ struct BaiduRouteMap: UIViewRepresentable {
         view.renderSegments(segments, playback: playback)
         let live: [NSNumber]? = liveCoordinate.map { [NSNumber(value: $0.latitude), NSNumber(value: $0.longitude)] }
         view.setLivePosition(replayActive ? nil : live, follow: followVehicle && !replayActive)
-        // Playback changes only the car annotation, not the map camera.
+        // Keep the replay vehicle visible while the route is progressively drawn.
+        if replayActive && followVehicle {
+            view.followPlaybackPosition(playback)
+        }
     }
 }
