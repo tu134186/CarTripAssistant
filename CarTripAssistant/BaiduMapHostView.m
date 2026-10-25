@@ -12,7 +12,6 @@
 @property(nonatomic,assign) BOOL pendingFit;
 @property(nonatomic,assign) BMKCoordinateRegion initialRegion;
 @property(nonatomic,strong) BMKPointAnnotation *startPin;
-@property(nonatomic,strong) BMKPointAnnotation *endPin;
 @property(nonatomic,strong) NSArray<NSDictionary *> *lastSegments;
 @property(nonatomic,strong) NSMutableArray<BMKPolyline *> *passengerLines;
 @property(nonatomic,strong) NSMutableArray<BMKPolyline *> *routeLines;
@@ -99,17 +98,14 @@ static BOOL started = NO;
         self.lastSegments=[segments copy];
         if (!all.count) {
             if (self.startPin) { [self.map removeAnnotation:self.startPin]; self.startPin=nil; }
-            if (self.endPin) { [self.map removeAnnotation:self.endPin]; self.endPin=nil; }
             // Playback may temporarily have zero drawable segments (first GPS
             // fix). Keep the full-day camera instead of resetting its fit.
             // A new map view starts with fitted=NO naturally.
         }
         if (all.count) {
-            CLLocationCoordinate2D first=[self baidu:all.firstObject], last=[self baidu:all.lastObject];
+            CLLocationCoordinate2D first=[self baidu:all.firstObject];
             if (!self.startPin) { self.startPin=[BMKPointAnnotation new]; self.startPin.title=@"起点"; [self.map addAnnotation:self.startPin]; }
-            if (!self.endPin) { self.endPin=[BMKPointAnnotation new]; self.endPin.title=@"终点 / 最新位置"; [self.map addAnnotation:self.endPin]; }
             self.startPin.coordinate=first;
-            self.endPin.coordinate=last;
             if (!self.fitted) {
                 CLLocationDegrees minLat=90,maxLat=-90,minLon=180,maxLon=-180;
                 for (NSArray<NSNumber *> *pair in all) {
@@ -159,8 +155,8 @@ static BOOL started = NO;
     }
 }
 - (BMKAnnotationView *)mapView:(BMKMapView *)mapView viewForAnnotation:(id<BMKAnnotation>)annotation {
-    if (annotation != self.vehicle) return nil;
-    static NSString *reuseID = @"CarTripReplayVehicle";
+    if (annotation != self.vehicle && annotation != self.livePin) return nil;
+    static NSString *reuseID = @"CarTripVehicle";
     BMKAnnotationView *view = [mapView dequeueReusableAnnotationViewWithIdentifier:reuseID];
     if (!view) {
         view = [[BMKAnnotationView alloc] initWithAnnotation:annotation reuseIdentifier:reuseID];
