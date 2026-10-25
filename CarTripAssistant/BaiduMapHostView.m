@@ -1,5 +1,6 @@
 #import "BaiduMapHostView.h"
 #import <CoreLocation/CoreLocation.h>
+#import <QuartzCore/QuartzCore.h>
 #import <BaiduMapAPI_Base/BMKBaseComponent.h>
 #import <BaiduMapAPI_Map/BMKMapComponent.h>
 #import <BaiduMapAPI_Utils/BMKUtilsComponent.h>
@@ -15,6 +16,7 @@
 @property(nonatomic,assign) BOOL cameraModeReady;
 @property(nonatomic,assign) CLLocationCoordinate2D lastCameraFix;
 @property(nonatomic,assign) BOOL hasCameraFix;
+@property(nonatomic,assign) CFTimeInterval lastCameraFixTime;
 @property(nonatomic,assign) BOOL replayCameraFitted;
 @property(nonatomic,assign) BOOL pendingFit;
 @property(nonatomic,assign) BMKCoordinateRegion initialRegion;
@@ -160,7 +162,7 @@ static BOOL started = NO;
     // Fixed viewport during replay: only the historical car moves.
     (void)position;
 }
-- (void)setLivePosition:(NSArray<NSNumber *> *)position mode:(NSInteger)mode heading:(double)heading {
+- (void)setLivePosition:(NSArray<NSNumber *> *)position mode:(NSInteger)mode heading:(double)heading speed:(double)speed accuracy:(double)accuracy {
     if (!self.map) return;
     if (position.count != 2) {
         if (self.livePin) { [self.map removeAnnotation:self.livePin]; self.livePin=nil; }
@@ -177,6 +179,20 @@ static BOOL started = NO;
         CLLocation *oldFix=[[CLLocation alloc] initWithLatitude:self.lastCameraFix.latitude longitude:self.lastCameraFix.longitude];
         CLLocation *newFix=[[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
         if ([oldFix distanceFromLocation:newFix] < 8.0) coordinate=self.lastCameraFix;
+    }
+    // Ignore inaccurate and implausibly distant GPS fixes for camera movement.
+    // The saved route and mileage are untouched: this filter is visual only.
+    if (mode != 0 && !self.vehicle && self.hasCameraFix) {
+        CLLocation *previous = [[CLLocation alloc] initWithLatitude:self.lastCameraFix.latitude longitude:self.lastCameraFix.longitude];
+        CLLocation *candidate = [[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
+        double distance = [previous distanceFromLocation:candidate];
+        CFTimeInterval elapsed = CACurrentMediaTime() - self.lastCameraFixTime;
+        BOOL poorAccuracy = accuracy < 0 || accuracy > 65;
+        BOOL stoppedJump = speed >= 0 && speed < 1.5 && distance > 20;
+        BOOL impossibleJump = elapsed < 5 && distance > MAX(80.0, elapsed * 55.0 + 30.0);
+        if (poorAccuracy || stoppedJump || impossibleJump) {
+            coordinate = self.lastCameraFix;
+        }
     }
     self.livePin.coordinate=coordinate;
     // Replay keeps its existing full-route overview. Live camera modes are independent.
@@ -196,6 +212,7 @@ static BOOL started = NO;
     if (moved) {
         self.lastCameraFix=coordinate;
         self.hasCameraFix=YES;
+        self.lastCameraFixTime=CACurrentMediaTime();
     }
     if (!self.navigationZoomInitialized) {
         self.map.zoomLevel = 17.5f;
