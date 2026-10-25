@@ -110,3 +110,8 @@ V3.0.0 / Build 3000：新增轨迹页苹果/百度地图选择；百度地图SDK
 ## V3.3.20 (Build 3320) — camera mode stabilization
 
 Based on the existing V3.3.19 development branch, this isolated build reduces stationary heading jitter and unnecessary camera recentering when switching live Baidu map camera modes. Existing historical replay overview, route drawing, GPS recording, backup and odometer logic are unchanged.
+
+
+## V3.3.21 (Build 3321) — fixed vehicle navigation camera
+
+Based on V3.3.20, reject inaccurate or implausible camera-only GPS jumps while preserving the car's navigation heading and the existing historical playback behavior. Recording, backups, mileage and route storage are unchanged.
