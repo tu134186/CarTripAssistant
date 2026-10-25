@@ -160,16 +160,14 @@ static BOOL started = NO;
     BMKAnnotationView *view = [mapView dequeueReusableAnnotationViewWithIdentifier:reuseID];
     if (!view) {
         view = [[BMKAnnotationView alloc] initWithAnnotation:annotation reuseIdentifier:reuseID];
-        UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:24 weight:UIImageSymbolWeightBold];
+        UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightSemibold];
         UIImage *symbol = [UIImage systemImageNamed:@"car.fill" withConfiguration:config];
-        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(48, 48)];
+        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(26, 26)];
         view.image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
-            [[UIColor colorWithRed:0.05 green:0.39 blue:0.95 alpha:1] setFill];
-            [[UIBezierPath bezierPathWithOvalInRect:CGRectMake(2, 2, 44, 44)] fill];
-            [[UIColor whiteColor] setFill];
-            [symbol drawInRect:CGRectMake(10, 12, 28, 24)];
+            [[UIColor colorWithRed:0.07 green:0.43 blue:0.88 alpha:1] setFill];
+            [symbol drawInRect:CGRectMake(3, 4, 20, 18)];
         }];
-        view.centerOffset = CGPointMake(0, -8);
+        view.centerOffset = CGPointZero;
     }
     view.annotation = annotation;
     return view;
