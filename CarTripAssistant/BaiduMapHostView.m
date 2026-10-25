@@ -134,8 +134,13 @@ static BOOL started = NO;
     }
 }
 - (void)followPlaybackPosition:(NSArray<NSNumber *> *)position {
-    // Fixed viewport during replay: only the historical car moves.
-    (void)position;
+    if (!self.map || position.count != 2) return;
+    CLLocationCoordinate2D coordinate = [self baidu:position];
+    CLLocation *center = [[CLLocation alloc] initWithLatitude:self.map.centerCoordinate.latitude longitude:self.map.centerCoordinate.longitude];
+    CLLocation *target = [[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
+    if ([center distanceFromLocation:target] > 5) {
+        [self.map setCenterCoordinate:coordinate animated:NO];
+    }
 }
 - (void)setLivePosition:(NSArray<NSNumber *> *)position follow:(BOOL)follow {
     if (!self.map) return;
