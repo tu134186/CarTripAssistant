@@ -232,6 +232,12 @@ static BOOL started = NO;
     }
     // Only update camera when necessary; do not reset zoom at each GPS fix.
     if (!modeChanged && !moved) return;
+    // The Baidu SDK supports a stable screen anchor independent of geographic center.
+    // Place the real vehicle at 70% of map height, leaving more road visible ahead.
+    // This is a fixed screen anchor, NOT a coordinate derived from the previous map center.
+    if (self.map.bounds.size.width > 0 && self.map.bounds.size.height > 0) {
+        [self.map setMapCenterToScreenPt:CGPointMake(CGRectGetMidX(self.map.bounds), CGRectGetHeight(self.map.bounds) * 0.70)];
+    }
     // Anchor every camera update to the *current vehicle GPS coordinate*.
     // Never recenter to a screen-to-map converted point: that feedback loop
     // repeatedly advances the camera beyond the vehicle on each GPS tick.
