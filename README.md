@@ -129,3 +129,6 @@ CI verification trigger: build V3.3.23 (3323) from its own source; no merge to m
 
 
 V3.3.23: Baidu SDK fixed vehicle screen anchor at 70% height, plus one-tap recenter / heading-up button. Historical playback unchanged.
+
+
+CI trigger for V3.3.23 build 3323 IPA and source ZIP.
