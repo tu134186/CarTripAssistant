@@ -2051,38 +2051,17 @@ private struct RouteDetail: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .frame(maxWidth: .infinity)
-                        Button { replayMode = true; replayRunning = false; replayElapsed = max(0, replayElapsed - 10) } label: {
-                            Image(systemName: "gobackward.10").frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity)
-                        Button { replayMode = true; replayRunning = false; replayElapsed = min(replayDuration, replayElapsed + 10) } label: {
-                            Image(systemName: "goforward.10").frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity)
                         Button("重置") { replayRunning = false; replayElapsed = 0; replayMode = false }
                             .buttonStyle(.bordered)
                             .frame(maxWidth: .infinity)
                     }
                     .controlSize(.regular)
-                    HStack {
-                        Text("回放速度").font(.caption).foregroundStyle(Cockpit.muted)
-                        Spacer()
-                        Picker("速度", selection: $replaySpeed) {
-                            Text("1×").tag(1)
-                            Text("2×").tag(2)
-                            Text("5×").tag(5)
-                            Text("10×").tag(10)
-                            Text("20×").tag(20)
-                            Text("30×").tag(30)
-                            Text("60秒看完").tag(-60)
-                            Text("30秒看完").tag(-30)
-                            Text("20秒看完").tag(-20)
-                        }
-                        .pickerStyle(.menu)
-                        .fixedSize(horizontal: true, vertical: false)
+                    Picker("回放时长", selection: $replaySpeed) {
+                        Text("60秒看完").tag(-60)
+                        Text("30秒看完").tag(-30)
+                        Text("20秒看完").tag(-20)
                     }
+                    .pickerStyle(.segmented)
                     Slider(value: Binding(get: { replayElapsed }, set: { replayMode = true; replayElapsed = $0; replayRunning = false }),
                            in: 0...max(1, replayDuration))
                     Text(!replayMode ? "完整路线" : "回放：\(shift.points[min(replayIndex, replayCount - 1)].date.formatted(date: .omitted, time: .standard))")
@@ -2137,6 +2116,15 @@ private struct RouteDetail: View {
                         .strokeBorder(Cockpit.blue.opacity(0.12), lineWidth: 1)
                 }
                 .padding(.horizontal, 14)
+                .overlay(alignment: .topTrailing) {
+                    if !replayMode {
+                        Text(store.gpsSpeed.map { String(format: "%.0f km/h", $0) } ?? "-- km/h")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(.regularMaterial, in: Capsule())
+                            .padding(22)
+                    }
+                }
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     Button(satelliteMode ? "标准地图" : "卫星地图") { satelliteMode.toggle() }
