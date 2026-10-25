@@ -1,11 +1,14 @@
 name: CarTripAssistant iOS
 on:
   push:
-    branches: [main, feature/v3.3.13-route-ui]
+    branches: [main]
   workflow_dispatch:
   workflow_run:
     workflows: ["Build Shenzhen Offline Map"]
     types: [completed]
+concurrency:
+  group: cartrip-ios-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
   actions: read
