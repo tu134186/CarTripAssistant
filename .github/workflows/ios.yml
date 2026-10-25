@@ -1,7 +1,7 @@
 name: CarTripAssistant iOS
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/v3322-anchored-navigation-camera']
   workflow_dispatch:
   workflow_run:
     workflows: ["Build Shenzhen Offline Map"]
