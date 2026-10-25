@@ -161,6 +161,7 @@ struct TrackPoint: Codable {
     @Published var gpsStatus = "等待定位"
     @Published var motionStatus = "未知"
     @Published var gpsAccuracy: Double?
+    @Published var compassHeading: Double?
     @Published var gpsSpeed: Double?
     @Published var gpsLastUpdate: Date?
     @Published private(set) var latestGPSLocation: CLLocation?
@@ -210,6 +211,8 @@ struct TrackPoint: Codable {
             gpsStatus = "历史记录读取失败，请先备份数据"
         }
         location.delegate = self
+        location.headingFilter = 3
+        if CLLocationManager.headingAvailable() { location.startUpdatingHeading() }
         location.activityType = .automotiveNavigation
         location.desiredAccuracy = kCLLocationAccuracyBest
         location.distanceFilter = kCLDistanceFilterNone
@@ -407,6 +410,11 @@ struct TrackPoint: Codable {
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         gpsErrorCount += 1
         gpsStatus = "定位异常：" + error.localizedDescription
+    }
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        guard newHeading.headingAccuracy >= 0 else { return }
+        let degrees = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
+        if degrees >= 0 && degrees < 360 { compassHeading = degrees }
     }
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard var shift = active else { return }
@@ -1992,6 +2000,7 @@ private struct RouteDetail: View {
     @AppStorage("cartrip.baiduPrivacyConsent") private var baiduPrivacyConsent = false
     @State private var satelliteMode = false
     @AppStorage("cartrip.mapCameraMode") private var mapCameraMode = 2
+    @AppStorage("cartrip.headingOffset") private var headingOffset = 0.0
     // Replay uses recorded timestamps, not the number of GPS points.
     // A missing GPS second is never presented as a genuine recorded fix.
     @State private var replayElapsed: TimeInterval = 0
@@ -2109,6 +2118,18 @@ private struct RouteDetail: View {
                     .pickerStyle(.menu)
                 }
                 .padding(.horizontal, 14)
+                if mapCameraMode == 2 {
+                    Button("校准车头方向") {
+                        if let compass = store.compassHeading,
+                           let gps = store.latestGPSLocation,
+                           gps.speed >= 3, gps.course >= 0 {
+                            headingOffset = (gps.course - compass + 360).truncatingRemainder(dividingBy: 360)
+                        }
+                    }
+                    .font(.caption)
+                    .disabled(store.compassHeading == nil || (store.latestGPSLocation?.speed ?? -1) < 3 || (store.latestGPSLocation?.course ?? -1) < 0)
+                    .padding(.horizontal, 14)
+                }
             }
             if routeMapProvider == "baidu" && !baiduPrivacyConsent {
                 Button("同意百度地图SDK隐私政策并启用百度地图") {
@@ -2125,7 +2146,14 @@ private struct RouteDetail: View {
                                   fullRoutePoints: shift.points,
                                   playbackCoordinate: playbackCoordinate,
                                   cameraMode: mapCameraMode,
-                                  liveHeading: (store.latestGPSLocation?.speed ?? -1) >= 2.0 ? (store.latestGPSLocation?.course ?? -1) : -1,
+                                  liveHeading: {
+                                      let gps = store.latestGPSLocation
+                                      if let gps, gps.speed >= 2.0, gps.course >= 0 { return gps.course }
+                                      if let compass = store.compassHeading {
+                                          return (compass + headingOffset).truncatingRemainder(dividingBy: 360)
+                                      }
+                                      return -1
+                                  }(),
                                   replayActive: replayMode,
                                   liveCoordinate: store.latestGPSLocation?.coordinate)
                 } else {
