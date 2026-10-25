@@ -1,7 +1,7 @@
 name: CarTripAssistant iOS
 on:
   push:
-    branches: [main, 'fix/v3320-camera-mode-stability']
+    branches: [main, 'fix/v3321-camera-mode-stability']
   workflow_dispatch:
   workflow_run:
     workflows: ["Build Shenzhen Offline Map"]
@@ -36,8 +36,8 @@ jobs:
           p='CarTripAssistant/Info.plist'
           with open(p,'rb') as f: info=plistlib.load(f)
           assert info.get('CFBundleShortVersionString'), 'Uploaded source missing app version'
-          info['CFBundleShortVersionString']='3.3.20'
-          info['CFBundleVersion']='3320'
+          info['CFBundleShortVersionString']='3.3.21'
+          info['CFBundleVersion']='3321'
           with open(p,'wb') as f: plistlib.dump(info,f)
           PY
       - name: Publish optional Shenzhen map separately
@@ -78,7 +78,7 @@ jobs:
           test -s Podfile
           test -s CarTripAssistant/BaiduMapHostView.m
           /usr/bin/plutil -lint CarTripAssistant/Info.plist
-          grep -q "3.3.20" CarTripAssistant/Info.plist
+          grep -q "3.3.21" CarTripAssistant/Info.plist
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -104,7 +104,7 @@ jobs:
           xcodebuild -workspace CarTripAssistant.xcworkspace -scheme CarTripAssistant -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/CarTripAssistant.app Payload/
-          zip -qry CarTripAssistant-V3.3.20-unsigned.ipa Payload
+          zip -qry CarTripAssistant-V3.3.21-unsigned.ipa Payload
           python3 - <<'PY'
           import plistlib
           p='CarTripAssistant/Info.plist'
@@ -116,35 +116,35 @@ jobs:
         run: |
           python3 - <<'PY'
           import zipfile,plistlib
-          ipa='CarTripAssistant-V3.3.20-unsigned.ipa'
+          ipa='CarTripAssistant-V3.3.21-unsigned.ipa'
           with zipfile.ZipFile(ipa) as z:
               names=z.namelist()
               info=plistlib.loads(z.read('Payload/CarTripAssistant.app/Info.plist'))
-              assert info.get('CFBundleShortVersionString')=='3.3.20', info.get('CFBundleShortVersionString')
+              assert info.get('CFBundleShortVersionString')=='3.3.21', info.get('CFBundleShortVersionString')
               assert 'Payload/CarTripAssistant.app/Assets.car' in names, 'Compiled asset catalog missing'
               icon=info.get('CFBundleIcons',{}).get('CFBundlePrimaryIcon',{})
               assert icon.get('CFBundleIconName')=='AppIcon' or icon.get('CFBundleIconFiles'), 'No primary icon metadata'
-              print('Verified V3.3.20 and compiled AppIcon metadata')
+              print('Verified V3.3.21 and compiled AppIcon metadata')
           PY
       - name: Verify map excluded from IPA
         run: |
           python3 - <<'PY'
           import zipfile
-          with zipfile.ZipFile('CarTripAssistant-V3.3.20-unsigned.ipa') as z:
+          with zipfile.ZipFile('CarTripAssistant-V3.3.21-unsigned.ipa') as z:
               assert not any(n.endswith('.mbtiles') for n in z.namelist()), 'Map unexpectedly bundled'
           print('Verified lightweight IPA without map tiles')
           PY
-      - name: Package V3.3.20 source archive
+      - name: Package V3.3.21 source archive
         run: |
-          zip -qry "V3.3.20-行程助手-源码.zip" CarTripAssistant scripts project.yml Podfile README.md
-          unzip -t "V3.3.20-行程助手-源码.zip" | tail -1
+          zip -qry "V3.3.21-行程助手-源码.zip" CarTripAssistant scripts project.yml Podfile README.md
+          unzip -t "V3.3.21-行程助手-源码.zip" | tail -1
       - uses: actions/upload-artifact@v4
         with:
-          name: V3.3.20-行程助手-源码
-          path: V3.3.20-行程助手-源码.zip
+          name: V3.3.21-行程助手-源码
+          path: V3.3.21-行程助手-源码.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: CarTripAssistant-V3.3.20-unsigned-IPA
-          path: CarTripAssistant-V3.3.20-unsigned.ipa
+          name: CarTripAssistant-V3.3.21-unsigned-IPA
+          path: CarTripAssistant-V3.3.21-unsigned.ipa
           if-no-files-found: error
