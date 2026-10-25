@@ -1673,7 +1673,12 @@ private struct TripRouteMap: UIViewRepresentable {
             } ?? false
             // A discontinuity is not a driven road. Never draw a straight
             // connector across a GPS gap, reversed timestamp or impossible jump.
-            if p.segmentStart || elapsed > 8 || (previousDate != nil && elapsed <= 0) || jumped {
+            let stoppedNearby = elapsed > 8 && elapsed <= 600 &&
+                (previousCoordinate.map { CLLocation(latitude: $0.latitude, longitude: $0.longitude)
+                    .distance(from: CLLocation(latitude: p.lat, longitude: p.lon)) <= 35 } ?? false) &&
+                p.accuracy > 0 && p.accuracy <= 35
+            if (p.segmentStart && !stoppedNearby) || (elapsed > 8 && !stoppedNearby) ||
+                (previousDate != nil && elapsed <= 0) || jumped {
                 flush()
                 segmentPassenger = passenger
             } else if passenger != segmentPassenger {
@@ -1981,6 +1986,7 @@ private struct RouteDetail: View {
     @StateObject private var mapDownload = ShenzhenMapDownload()
     @State private var mapError: String?
     @State private var showDiagnostics = false
+    @State private var showMapTools = false
     @State private var replayRunning = false
     @State private var replayMode = false
     @State private var replaySpeed = -30
@@ -2051,37 +2057,18 @@ private struct RouteDetail: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .frame(maxWidth: .infinity)
-                        Button { replayMode = true; replayRunning = false; replayElapsed = max(0, replayElapsed - 10) } label: {
-                            Image(systemName: "gobackward.10").frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity)
-                        Button { replayMode = true; replayRunning = false; replayElapsed = min(replayDuration, replayElapsed + 10) } label: {
-                            Image(systemName: "goforward.10").frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity)
                         Button("重置") { replayRunning = false; replayElapsed = 0; replayMode = false }
                             .buttonStyle(.bordered)
                             .frame(maxWidth: .infinity)
                     }
                     .controlSize(.regular)
                     HStack {
-                        Text("回放速度").font(.caption).foregroundStyle(Cockpit.muted)
-                        Spacer()
-                        Picker("速度", selection: $replaySpeed) {
-                            Text("1×").tag(1)
-                            Text("2×").tag(2)
-                            Text("5×").tag(5)
-                            Text("10×").tag(10)
-                            Text("20×").tag(20)
-                            Text("30×").tag(30)
+                         Picker("回放时长", selection: $replaySpeed) {
                             Text("60秒看完").tag(-60)
                             Text("30秒看完").tag(-30)
                             Text("20秒看完").tag(-20)
                         }
-                        .pickerStyle(.menu)
-                        .fixedSize(horizontal: true, vertical: false)
+                        .pickerStyle(.segmented)
                     }
                     Slider(value: Binding(get: { replayElapsed }, set: { replayMode = true; replayElapsed = $0; replayRunning = false }),
                            in: 0...max(1, replayDuration))
@@ -2115,7 +2102,8 @@ private struct RouteDetail: View {
             if routeMapProvider == "baidu" && !BaiduRouteMap.isConfigured {
                 Text("百度地图AK未配置，自动使用苹果地图").font(.caption).foregroundStyle(Cockpit.muted)
             }
-            Group {
+            ZStack(alignment: .topTrailing) {
+                Group {
                 if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
                     BaiduRouteMap(shift: replayMode ? replayShift : shift,
                                   playbackCoordinate: playbackCoordinate,
@@ -2127,6 +2115,17 @@ private struct RouteDetail: View {
                                  playbackCoordinate: playbackCoordinate,
                                  satelliteMode: satelliteMode)
                 }
+                }
+                if store.active?.id == shift.id {
+                    HStack(spacing: 5) {
+                        Image(systemName: "speedometer")
+                        Text(store.gpsSpeed.map { String(format: "%.0f km/h", max(0, $0)) } ?? "-- km/h")
+                    }
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(10)
+                }
             }
                 .id(mapRevision)
                 .frame(maxWidth: .infinity)
@@ -2137,6 +2136,7 @@ private struct RouteDetail: View {
                         .strokeBorder(Cockpit.blue.opacity(0.12), lineWidth: 1)
                 }
                 .padding(.horizontal, 14)
+            DisclosureGroup(isExpanded: $showMapTools) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     Button(satelliteMode ? "标准地图" : "卫星地图") { satelliteMode.toggle() }
@@ -2168,6 +2168,13 @@ private struct RouteDetail: View {
                     Spacer(minLength: 0)
                 }
             }.padding(.horizontal, 15).padding(.top, 10)
+            } label: {
+                Label("地图管理与卫星模式", systemImage: "map").font(.system(size: 13, weight: .semibold))
+            }
+            .padding(12)
+            .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
             if mapDownload.downloading {
                 ProgressView(value: mapDownload.progress).padding(.horizontal, 15)
                 Text("下载深圳地图：\(Int(mapDownload.progress * 100))%")
@@ -2202,6 +2209,8 @@ private struct RouteDetail: View {
             .padding(.horizontal, 12)
             .padding(.top, 8)
             replayControls
+                .background(Cockpit.panel, in: RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 12)
             HStack(spacing: 18) {
                 Label("全天轨迹", systemImage: "line.diagonal").foregroundStyle(.blue)
                 Label("载客区间", systemImage: "line.diagonal").foregroundStyle(.green)
@@ -2210,8 +2219,22 @@ private struct RouteDetail: View {
             .font(.caption.bold())
             .padding(15)
             VStack(alignment: .leading, spacing: 8) {
-                Text(String(format: "总里程 %.2f km  ·  载客 %.2f km", shift.kilometers, shift.passengerKM))
-                    .font(.headline)
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading) {
+                        Text("总里程").font(.caption).foregroundStyle(.secondary)
+                        Text(String(format: "%.2f km", shift.kilometers)).font(.headline)
+                    }
+                    Spacer()
+                    VStack(alignment: .leading) {
+                        Text("载客").font(.caption).foregroundStyle(.secondary)
+                        Text(String(format: "%.2f km", shift.passengerKM)).font(.headline)
+                    }
+                    Spacer()
+                    VStack(alignment: .leading) {
+                        Text("空驶").font(.caption).foregroundStyle(.secondary)
+                        Text(String(format: "%.2f km", max(0, shift.kilometers - shift.passengerKM))).font(.headline)
+                    }
+                }
                 Text("\(shift.completedOrders) 单 · \(shift.points.count) 个轨迹点")
                     .font(.caption).foregroundStyle(.secondary)
                 if shift.points.count < 2 {
