@@ -2094,6 +2094,25 @@ private struct RouteDetail: View {
             .padding(.vertical, 6)
         }
     }
+    private var baiduLiveRouteView: some View {
+        let gps = store.latestGPSLocation
+        let bearing: Double = {
+            if let gps, gps.speed >= 2.0, gps.course >= 0 { return gps.course }
+            return -1
+        }()
+        return BaiduRouteMap(
+            shift: replayMode ? replayShift : shift,
+            fullRoutePoints: shift.points,
+            playbackCoordinate: playbackCoordinate,
+            cameraMode: mapCameraMode,
+            liveHeading: bearing,
+            liveSpeed: gps?.speed ?? -1,
+            liveAccuracy: gps?.horizontalAccuracy ?? -1,
+            replayActive: replayMode,
+            liveCoordinate: gps?.coordinate
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
 
@@ -2142,21 +2161,7 @@ private struct RouteDetail: View {
             }
             Group {
                 if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
-                    BaiduRouteMap(shift: replayMode ? replayShift : shift,
-                                  fullRoutePoints: shift.points,
-                                  playbackCoordinate: playbackCoordinate,
-                                  cameraMode: mapCameraMode,
-                                  liveHeading: {
-                                      let gps = store.latestGPSLocation
-                                      if let gps, gps.speed >= 2.0, gps.course >= 0 { return gps.course }
-                                      // While stationary, hold the last camera bearing instead of
-                                      // rotating the map with noisy phone compass readings.
-                                      return -1
-                                  }(),
-                                  replayActive: replayMode,
-                                  liveSpeed: store.latestGPSLocation?.speed ?? -1,
-                                  liveAccuracy: store.latestGPSLocation?.horizontalAccuracy ?? -1,
-                                  liveCoordinate: store.latestGPSLocation?.coordinate)
+                    baiduLiveRouteView
                 } else {
                     TripRouteMap(shift: replayMode ? replayShift : shift,
                                  playbackCoordinate: playbackCoordinate,

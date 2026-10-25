@@ -123,3 +123,6 @@ Fix the forward-running Baidu heading-up map by removing the repeated screen-poi
 
 
 CI note: V3.3.22 isolated branch is now explicitly enabled by the default-branch workflow. This change requests the final IPA and source ZIP build.
+
+
+CI verification trigger: build V3.3.22 (3322) from its own source; no merge to main.
