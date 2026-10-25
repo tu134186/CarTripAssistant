@@ -2177,6 +2177,22 @@ private struct RouteDetail: View {
                         .strokeBorder(Cockpit.blue.opacity(0.12), lineWidth: 1)
                 }
                 .padding(.horizontal, 14)
+                .overlay(alignment: .bottomTrailing) {
+                    if !replayMode && routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
+                        Button {
+                            mapCameraMode = 2
+                            mapRevision += 1
+                        } label: {
+                            Image(systemName: "location.north.fill")
+                                .font(.system(size: 19, weight: .semibold))
+                                .foregroundStyle(.blue)
+                                .frame(width: 44, height: 44)
+                                .background(.regularMaterial, in: Circle())
+                        }
+                        .accessibilityLabel("一键定位并恢复车头朝上")
+                        .padding(22)
+                    }
+                }
                 .overlay(alignment: .topTrailing) {
                     if !replayMode {
                         Text(store.gpsSpeed.map { String(format: "%.0f km/h", $0) } ?? "-- km/h")
