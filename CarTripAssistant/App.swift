@@ -1729,11 +1729,13 @@ private struct TripRouteMap: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             guard annotation === playbackPin else { return nil }
             let reuseID = "CarTripReplayVehicle"
-            let view = (mapView.dequeueReusableAnnotationView(withIdentifier: reuseID) as? MKMarkerAnnotationView)
-                ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: reuseID)
+            let view = (mapView.dequeueReusableAnnotationView(withIdentifier: reuseID) as? MKAnnotationView)
+                ?? MKAnnotationView(annotation: annotation, reuseIdentifier: reuseID)
             view.annotation = annotation
-            view.markerTintColor = .systemOrange
-            view.glyphImage = UIImage(systemName: "car.fill")
+            let config = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
+            view.image = UIImage(systemName: "car.fill", withConfiguration: config)?
+                .withTintColor(.systemBlue, renderingMode: .alwaysOriginal)
+            view.centerOffset = .zero
             view.displayPriority = .required
             view.canShowCallout = true
             return view
