@@ -5,6 +5,7 @@ import CoreLocation
 // coordinates continue to use the original Core Location data.
 struct BaiduRouteMap: UIViewRepresentable {
     let shift: Shift
+    let fullRoutePoints: [TrackPoint]
     let playbackCoordinate: CLLocationCoordinate2D?
     let cameraMode: Int
     let liveHeading: Double
@@ -90,6 +91,8 @@ struct BaiduRouteMap: UIViewRepresentable {
             [NSNumber(value: $0.latitude), NSNumber(value: $0.longitude)]
         }
         view.renderSegments(segments, playback: playback)
+        let fullRoute = fullRoutePoints.map { [NSNumber(value: $0.lat), NSNumber(value: $0.lon)] }
+        view.fitReplayRoute(fullRoute, active: replayActive)
         let live: [NSNumber]? = liveCoordinate.map { [NSNumber(value: $0.latitude), NSNumber(value: $0.longitude)] }
         view.setLivePosition(replayActive ? nil : live, mode: replayActive ? 0 : cameraMode, heading: liveHeading)
         // Playback changes only the car annotation, not the map camera.
