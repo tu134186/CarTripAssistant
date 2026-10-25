@@ -9,6 +9,8 @@
 @property(nonatomic,strong) BMKPointAnnotation *vehicle;
 @property(nonatomic,strong) BMKPointAnnotation *livePin;
 @property(nonatomic,assign) BOOL fitted;
+@property(nonatomic,assign) double lastValidHeading;
+@property(nonatomic,assign) BOOL navigationZoomInitialized;
 @property(nonatomic,assign) BOOL pendingFit;
 @property(nonatomic,assign) BMKCoordinateRegion initialRegion;
 @property(nonatomic,strong) BMKPointAnnotation *startPin;
@@ -133,7 +135,7 @@ static BOOL started = NO;
     // Fixed viewport during replay: only the historical car moves.
     (void)position;
 }
-- (void)setLivePosition:(NSArray<NSNumber *> *)position follow:(BOOL)follow {
+- (void)setLivePosition:(NSArray<NSNumber *> *)position mode:(NSInteger)mode heading:(double)heading {
     if (!self.map) return;
     if (position.count != 2) {
         if (self.livePin) { [self.map removeAnnotation:self.livePin]; self.livePin=nil; }
@@ -146,12 +148,32 @@ static BOOL started = NO;
         [self.map addAnnotation:self.livePin];
     }
     self.livePin.coordinate=coordinate;
-    if (follow && !self.vehicle) {
-        CLLocation *oldCenter = [[CLLocation alloc] initWithLatitude:self.map.centerCoordinate.latitude longitude:self.map.centerCoordinate.longitude];
-        CLLocation *newCenter = [[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
-        if ([oldCenter distanceFromLocation:newCenter] > 12) {
-            [self.map setCenterCoordinate:coordinate animated:YES];
+    if (mode == 0 || self.vehicle) return; // Free browsing / replay: never override the camera.
+
+    if (!self.navigationZoomInitialized) {
+        self.map.zoomLevel = 17.5f;
+        self.navigationZoomInitialized = YES;
+    }
+    if (mode == 2) { // Heading-up navigation
+        if (isfinite(heading) && heading >= 0 && heading < 360) {
+            // SDK rotation is clockwise; keep the direction of travel pointing up.
+            double delta = remainder(heading - self.lastValidHeading, 360.0);
+            if (fabs(delta) >= 3.0) self.lastValidHeading = fmod(self.lastValidHeading + delta + 360.0, 360.0);
         }
+        self.map.rotation = (int)lrint(-self.lastValidHeading);
+    } else {
+        self.map.rotation = 0;
+    }
+    // Centering does not change the user's chosen zoom level.
+    [self.map setCenterCoordinate:coordinate animated:NO];
+    if (mode == 2 && self.map.bounds.size.height > 0) {
+        // Position the vehicle around 72% of the map height, leaving road ahead.
+        CGPoint forwardScreen = CGPointMake(CGRectGetMidX(self.map.bounds),
+                                            CGRectGetHeight(self.map.bounds) * 0.28);
+        CLLocationCoordinate2D forwardCenter =
+            [self.map convertPoint:forwardScreen toCoordinateFromView:self.map];
+        if (CLLocationCoordinate2DIsValid(forwardCenter))
+            [self.map setCenterCoordinate:forwardCenter animated:NO];
     }
 }
 - (BMKAnnotationView *)mapView:(BMKMapView *)mapView viewForAnnotation:(id<BMKAnnotation>)annotation {
