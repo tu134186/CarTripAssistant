@@ -11,6 +11,8 @@
 @property(nonatomic,assign) BOOL fitted;
 @property(nonatomic,assign) double lastValidHeading;
 @property(nonatomic,assign) BOOL navigationZoomInitialized;
+@property(nonatomic,assign) NSInteger previousCameraMode;
+@property(nonatomic,assign) BOOL cameraModeReady;
 @property(nonatomic,assign) CLLocationCoordinate2D lastCameraFix;
 @property(nonatomic,assign) BOOL hasCameraFix;
 @property(nonatomic,assign) BOOL replayCameraFitted;
@@ -177,34 +179,49 @@ static BOOL started = NO;
         if ([oldFix distanceFromLocation:newFix] < 8.0) coordinate=self.lastCameraFix;
     }
     self.livePin.coordinate=coordinate;
-    if (mode == 0 || self.vehicle) return;
-    self.lastCameraFix=coordinate;
-    self.hasCameraFix=YES; // Free browsing / replay: never override the camera.
+    // Replay keeps its existing full-route overview. Live camera modes are independent.
+    if (self.vehicle) return;
+    BOOL modeChanged = !self.cameraModeReady || self.previousCameraMode != mode;
+    self.previousCameraMode = mode;
+    self.cameraModeReady = YES;
+    self.map.rotateEnabled = (mode == 0);
+    self.map.overlookEnabled = NO;
+    if (mode == 0) return; // Free browsing: preserve user camera and zoom.
 
+    CLLocation *oldFix = self.hasCameraFix
+        ? [[CLLocation alloc] initWithLatitude:self.lastCameraFix.latitude longitude:self.lastCameraFix.longitude]
+        : nil;
+    CLLocation *newFix = [[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
+    BOOL moved = !oldFix || [oldFix distanceFromLocation:newFix] >= 5.0;
+    if (moved) {
+        self.lastCameraFix=coordinate;
+        self.hasCameraFix=YES;
+    }
     if (!self.navigationZoomInitialized) {
         self.map.zoomLevel = 17.5f;
         self.navigationZoomInitialized = YES;
     }
-    if (mode == 2) { // Heading-up navigation
+    if (mode == 2) {
         if (isfinite(heading) && heading >= 0 && heading < 360) {
-            // SDK rotation is clockwise; keep the direction of travel pointing up.
             double delta = remainder(heading - self.lastValidHeading, 360.0);
-            if (fabs(delta) >= 8.0) self.lastValidHeading = fmod(self.lastValidHeading + delta + 360.0, 360.0);
+            if (modeChanged || fabs(delta) >= 5.0)
+                self.lastValidHeading = fmod(self.lastValidHeading + delta + 360.0, 360.0);
         }
-        self.map.rotation = (int)lrint(self.lastValidHeading);
-    } else {
+        double rotationDelta = fabs(remainder(self.lastValidHeading - self.map.rotation, 360.0));
+        if (modeChanged || rotationDelta >= 3.0)
+            self.map.rotation = (int)lrint(self.lastValidHeading);
+    } else if (modeChanged || fabs(self.map.rotation) > 0.5) {
         self.map.rotation = 0;
     }
-    // Centering does not change the user's chosen zoom level.
+    // Only update camera when necessary; do not reset zoom at each GPS fix.
+    if (!modeChanged && !moved) return;
     if (mode == 2 && self.map.bounds.size.height > 0) {
-        // Position the vehicle around 72% of the map height, leaving road ahead.
         [self.map setCenterCoordinate:coordinate animated:NO];
-        CGPoint forwardScreen = CGPointMake(CGRectGetMidX(self.map.bounds),
-                                            CGRectGetHeight(self.map.bounds) * 0.28);
-        CLLocationCoordinate2D forwardCenter =
-            [self.map convertPoint:forwardScreen toCoordinateFromView:self.map];
-        if (CLLocationCoordinate2DIsValid(forwardCenter))
-            [self.map setCenterCoordinate:forwardCenter animated:NO];
+        CGPoint ahead = CGPointMake(CGRectGetMidX(self.map.bounds),
+                                    CGRectGetHeight(self.map.bounds) * 0.28);
+        CLLocationCoordinate2D center = [self.map convertPoint:ahead toCoordinateFromView:self.map];
+        if (CLLocationCoordinate2DIsValid(center))
+            [self.map setCenterCoordinate:center animated:NO];
     } else {
         [self.map setCenterCoordinate:coordinate animated:NO];
     }
