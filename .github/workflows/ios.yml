@@ -2,6 +2,8 @@ name: CarTripAssistant iOS
 on:
   push:
     branches: [main, 'fix/v3322-camera-mode-stability']
+  pull_request:
+    branches: ['ci/v3322-verified-base']
   workflow_dispatch:
   workflow_run:
     workflows: ["Build Shenzhen Offline Map"]
