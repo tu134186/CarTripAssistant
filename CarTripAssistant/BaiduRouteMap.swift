@@ -53,7 +53,10 @@ struct BaiduRouteMap: UIViewRepresentable {
                 let seconds = point.date.timeIntervalSince(old.date)
                 let meters = CLLocation(latitude: old.lat, longitude: old.lon)
                     .distance(from: CLLocation(latitude: point.lat, longitude: point.lon))
-                discontinuity = discontinuity || seconds <= 0 || seconds > 8 || meters / seconds >= 50
+                let stoppedNearby = seconds > 8 && seconds <= 600 && meters <= 35 &&
+                    point.accuracy > 0 && point.accuracy <= 35
+                discontinuity = (discontinuity && !stoppedNearby) ||
+                    seconds <= 0 || (seconds > 8 && !stoppedNearby) || meters / seconds >= 50
             }
             if discontinuity {
                 flush()
