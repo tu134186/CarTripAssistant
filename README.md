@@ -105,3 +105,8 @@ V3.0.0 / Build 3000：新增轨迹页苹果/百度地图选择；百度地图SDK
 ## V3.3.4 / Build 3304 — 百度地图蓝绿轨迹同步回放
 - 修复百度地图只移除绿色载客折线、未移除蓝色空驶折线的问题；回放时间轴变化时同时移除两类旧折线并按当前时间重新绘制。
 - 保留原有 GPS、里程、回放时序、车辆图标和地图布局。
+
+
+## V3.3.20 (Build 3320) — camera mode stabilization
+
+Based on the existing V3.3.19 development branch, this isolated build reduces stationary heading jitter and unnecessary camera recentering when switching live Baidu map camera modes. Existing historical replay overview, route drawing, GPS recording, backup and odometer logic are unchanged.
