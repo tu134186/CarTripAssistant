@@ -135,3 +135,6 @@ CI trigger for V3.3.24 build 3324 IPA and source ZIP.
 
 
 V3.3.24: Remove meal, charging and other rest rows from historical daily report only. Keep 3323 map features and underlying statistics.
+
+
+CI validation V3324 source ZIP and IPA.
