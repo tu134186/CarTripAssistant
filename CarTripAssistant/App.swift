@@ -1991,7 +1991,7 @@ private struct RouteDetail: View {
     @AppStorage("cartrip.routeMapProvider") private var routeMapProvider = "baidu"
     @AppStorage("cartrip.baiduPrivacyConsent") private var baiduPrivacyConsent = false
     @State private var satelliteMode = false
-    @AppStorage("cartrip.followVehicle") private var followVehicle = false
+    @AppStorage("cartrip.mapCameraMode") private var mapCameraMode = 2
     // Replay uses recorded timestamps, not the number of GPS points.
     // A missing GPS second is never presented as a genuine recorded fix.
     @State private var replayElapsed: TimeInterval = 0
@@ -2098,8 +2098,17 @@ private struct RouteDetail: View {
             .padding(.bottom, 12)
             .background(Cockpit.background)
             if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
-                Toggle("跟随车辆", isOn: $followVehicle)
-                    .font(.caption).padding(.horizontal, 14)
+                HStack {
+                    Text("地图视角").font(.caption)
+                    Spacer()
+                    Picker("地图视角", selection: $mapCameraMode) {
+                        Text("车头朝上").tag(2)
+                        Text("正北朝上").tag(1)
+                        Text("自由浏览").tag(0)
+                    }
+                    .pickerStyle(.menu)
+                }
+                .padding(.horizontal, 14)
             }
             if routeMapProvider == "baidu" && !baiduPrivacyConsent {
                 Button("同意百度地图SDK隐私政策并启用百度地图") {
@@ -2114,7 +2123,8 @@ private struct RouteDetail: View {
                 if routeMapProvider == "baidu" && baiduPrivacyConsent && BaiduRouteMap.isConfigured {
                     BaiduRouteMap(shift: replayMode ? replayShift : shift,
                                   playbackCoordinate: playbackCoordinate,
-                                  followVehicle: followVehicle,
+                                  cameraMode: mapCameraMode,
+                                  liveHeading: (store.latestGPSLocation?.speed ?? -1) >= 2.0 ? (store.latestGPSLocation?.course ?? -1) : -1,
                                   replayActive: replayMode,
                                   liveCoordinate: store.latestGPSLocation?.coordinate)
                 } else {
